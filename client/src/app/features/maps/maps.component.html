@@ -1,0 +1,38 @@
+<div class="maps-container">
+  <div class="maps-header">
+    <h1>Job Market Heatmap</h1>
+    <mat-form-field>
+      <mat-label>Map Type</mat-label>
+      <mat-select [(ngModel)]="mapType" (selectionChange)="onMapTypeChange()">
+        <mat-option value="jobs">Job Density</mat-option>
+        <mat-option value="salary">Salary Heatmap</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <div *ngIf="loading" class="loading-spinner">
+    <mat-spinner></mat-spinner>
+  </div>
+
+  <div *ngIf="error" class="error-message">
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="loadHeatMapData()">Retry</button>
+  </div>
+
+  <mat-card *ngIf="heatMapData && !loading" class="map-card">
+    <div id="map" class="map-container"></div>
+    <mat-card-content>
+      <div class="map-legend">
+        <h3>Legend</h3>
+        <p *ngIf="mapType === 'jobs'">
+          Circle size represents number of jobs. Larger circles indicate more job opportunities.
+        </p>
+        <p *ngIf="mapType === 'salary'">
+          Color intensity represents average salary. Darker colors indicate higher salaries.
+        </p>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>
+
+

@@ -1,0 +1,20 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=${POSTGRES_HOST};Port=${POSTGRES_PORT};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}",
+    "Redis": "${REDIS_HOST}:${REDIS_PORT}"
+  },
+  "Adzuna": {
+    "AppId": "${ADZUNA_APP_ID}",
+    "AppKey": "${ADZUNA_APP_KEY}",
+    "Country": "${ADZUNA_COUNTRY}"
+  },
+  "JSearch": {
+    "ApiKey": "${JSEARCH_API_KEY}"
+  }
+}

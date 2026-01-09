@@ -1,0 +1,37 @@
+.stat-card {
+  height: 100%;
+  
+  .stat-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  .stat-icon {
+    mat-icon {
+      font-size: 48px;
+      width: 48px;
+      height: 48px;
+    }
+  }
+  
+  .stat-info {
+    flex: 1;
+  }
+  
+  .stat-title {
+    font-size: 14px;
+    color: #666;
+    margin: 0 0 8px 0;
+    font-weight: 400;
+  }
+  
+  .stat-value {
+    font-size: 32px;
+    font-weight: 500;
+    margin: 0;
+    color: #333;
+  }
+}
+
+

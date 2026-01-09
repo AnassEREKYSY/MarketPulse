@@ -1,0 +1,41 @@
+<div class="layout-container">
+  <mat-toolbar color="primary">
+    <button mat-icon-button (click)="sidenavOpened = !sidenavOpened">
+      <mat-icon>menu</mat-icon>
+    </button>
+    <span class="toolbar-title">MarketPulse Jobs</span>
+    <span class="spacer"></span>
+    <span class="toolbar-subtitle">Job Market Intelligence Platform</span>
+  </mat-toolbar>
+
+  <mat-sidenav-container class="sidenav-container">
+    <mat-sidenav [(opened)]="sidenavOpened" mode="side" class="sidenav">
+      <mat-nav-list>
+        <a mat-list-item routerLink="/dashboard" routerLinkActive="active">
+          <mat-icon>dashboard</mat-icon>
+          <span>Dashboard</span>
+        </a>
+        <a mat-list-item routerLink="/search" routerLinkActive="active">
+          <mat-icon>search</mat-icon>
+          <span>Search Jobs</span>
+        </a>
+        <a mat-list-item routerLink="/analytics" routerLinkActive="active">
+          <mat-icon>analytics</mat-icon>
+          <span>Analytics</span>
+        </a>
+        <a mat-list-item routerLink="/maps" routerLinkActive="active">
+          <mat-icon>map</mat-icon>
+          <span>Heat Maps</span>
+        </a>
+      </mat-nav-list>
+    </mat-sidenav>
+
+    <mat-sidenav-content class="content">
+      <div class="main-content">
+        <ng-content></ng-content>
+      </div>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+</div>
+
+

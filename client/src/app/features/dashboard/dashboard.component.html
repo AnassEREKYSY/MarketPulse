@@ -1,0 +1,61 @@
+<div class="dashboard-container">
+  <h1>Dashboard</h1>
+  
+  <div *ngIf="loading" class="loading-spinner">
+    <mat-spinner></mat-spinner>
+  </div>
+
+  <div *ngIf="error" class="error-message">
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="loadStatistics()">Retry</button>
+  </div>
+
+  <div *ngIf="statistics && !loading" class="dashboard-content">
+    <div class="stats-grid">
+      <app-stat-card
+        title="Total Jobs"
+        [value]="statistics.totalJobs"
+        icon="work"
+        color="primary">
+      </app-stat-card>
+      
+      <app-stat-card
+        title="Average Salary"
+        [value]="statistics.salaryStatistics.averageSalary || 0"
+        format="currency"
+        icon="attach_money"
+        color="accent">
+      </app-stat-card>
+      
+      <app-stat-card
+        title="Top Locations"
+        [value]="Object.keys(statistics.topLocations).length"
+        icon="location_on"
+        color="primary">
+      </app-stat-card>
+      
+      <app-stat-card
+        title="Top Companies"
+        [value]="Object.keys(statistics.topCompanies).length"
+        icon="business"
+        color="accent">
+      </app-stat-card>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <app-chart [config]="getEmploymentTypeChartData()"></app-chart>
+      </div>
+      
+      <div class="chart-card">
+        <app-chart [config]="getWorkModeChartData()"></app-chart>
+      </div>
+      
+      <div class="chart-card">
+        <app-chart [config]="getExperienceChartData()"></app-chart>
+      </div>
+    </div>
+  </div>
+</div>
+
+
