@@ -1,0 +1,118 @@
+<div class="search-container">
+  <h1>Search Jobs</h1>
+
+  <mat-card class="search-filters">
+    <mat-card-content>
+      <div class="filters-grid">
+        <mat-form-field>
+          <mat-label>Job Title</mat-label>
+          <input matInput [(ngModel)]="searchQuery" placeholder="e.g. Software Engineer">
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Location</mat-label>
+          <input matInput [(ngModel)]="location" placeholder="e.g. Paris, France">
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Employment Type</mat-label>
+          <mat-select [(ngModel)]="employmentType">
+            <mat-option value="">All</mat-option>
+            <mat-option *ngFor="let type of employmentTypes" [value]="type">{{ type }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Work Mode</mat-label>
+          <mat-select [(ngModel)]="workMode">
+            <mat-option value="">All</mat-option>
+            <mat-option *ngFor="let mode of workModes" [value]="mode">{{ mode }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Experience Level</mat-label>
+          <mat-select [(ngModel)]="experienceLevel">
+            <mat-option value="">All</mat-option>
+            <mat-option *ngFor="let level of experienceLevels" [value]="level">{{ level }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Min Salary (EUR/year)</mat-label>
+          <input matInput type="number" [(ngModel)]="minSalary" placeholder="0">
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Max Salary (EUR/year)</mat-label>
+          <input matInput type="number" [(ngModel)]="maxSalary" placeholder="100000">
+        </mat-form-field>
+      </div>
+
+      <div class="filter-actions">
+        <button mat-raised-button color="primary" (click)="search()" [disabled]="loading">
+          <mat-icon>search</mat-icon>
+          Search
+        </button>
+        <button mat-button (click)="clearFilters()">
+          Clear Filters
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <div *ngIf="loading" class="loading-spinner">
+    <mat-spinner></mat-spinner>
+  </div>
+
+  <div *ngIf="error" class="error-message">
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="search()">Retry</button>
+  </div>
+
+  <div *ngIf="results && !loading">
+    <div class="results-header">
+      <p>Found {{ results.totalCount }} jobs</p>
+    </div>
+
+    <div class="jobs-list">
+      <mat-card *ngFor="let job of results.jobs" class="job-card">
+        <mat-card-header>
+          <mat-card-title>{{ job.title }}</mat-card-title>
+          <mat-card-subtitle>
+            <span>{{ job.company.name }}</span>
+            <span> • </span>
+            <span>{{ job.location.city }}, {{ job.location.country }}</span>
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="job-description">{{ job.description.substring(0, 200) }}...</p>
+          <div class="job-tags">
+            <mat-chip>{{ job.employmentType }}</mat-chip>
+            <mat-chip>{{ job.workMode }}</mat-chip>
+            <mat-chip>{{ job.experienceLevel }}</mat-chip>
+            <mat-chip *ngIf="job.salaryRange">
+              {{ job.salaryRange.averageSalary | number:'1.0-0' }} EUR/year
+            </mat-chip>
+          </div>
+        </mat-card-content>
+        <mat-card-actions>
+          <a [href]="job.sourceUrl" target="_blank" mat-button color="primary">
+            View Job
+            <mat-icon>open_in_new</mat-icon>
+          </a>
+        </mat-card-actions>
+      </mat-card>
+    </div>
+
+    <mat-paginator
+      [length]="results.totalCount"
+      [pageSize]="pageSize"
+      [pageIndex]="pageIndex"
+      [pageSizeOptions]="[10, 20, 50, 100]"
+      (page)="onPageChange($event)">
+    </mat-paginator>
+  </div>
+</div>
+
+

@@ -1,0 +1,58 @@
+<div class="analytics-container">
+  <h1>Analytics</h1>
+
+  <div *ngIf="loading" class="loading-spinner">
+    <mat-spinner></mat-spinner>
+  </div>
+
+  <div *ngIf="error" class="error-message">
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="loadAnalytics()">Retry</button>
+  </div>
+
+  <div *ngIf="salaryStats && !loading" class="analytics-content">
+    <div class="stats-summary">
+      <mat-card>
+        <mat-card-content>
+          <h3>Salary Overview</h3>
+          <div class="stat-row">
+            <div class="stat-item">
+              <span class="stat-label">Average:</span>
+              <span class="stat-value">{{ salaryStats.averageSalary | number:'1.0-0' }} EUR/year</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Median:</span>
+              <span class="stat-value">{{ salaryStats.medianSalary | number:'1.0-0' }} EUR/year</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Range:</span>
+              <span class="stat-value">
+                {{ salaryStats.minSalary | number:'1.0-0' }} - {{ salaryStats.maxSalary | number:'1.0-0' }} EUR/year
+              </span>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <app-chart [config]="getSalaryByExperienceChart()"></app-chart>
+      </div>
+      
+      <div class="chart-card">
+        <app-chart [config]="getSalaryByLocationChart()"></app-chart>
+      </div>
+      
+      <div class="chart-card">
+        <app-chart [config]="getHiringTrendsChart()"></app-chart>
+      </div>
+      
+      <div class="chart-card">
+        <app-chart [config]="getSalaryTrendsChart()"></app-chart>
+      </div>
+    </div>
+  </div>
+</div>
+
+

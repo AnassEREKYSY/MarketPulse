@@ -1,0 +1,66 @@
+.layout-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.toolbar-title {
+  font-size: 20px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.toolbar-subtitle {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.sidenav-container {
+  flex: 1;
+}
+
+.sidenav {
+  width: 250px;
+  background-color: #fafafa;
+}
+
+.mat-nav-list a {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  
+  mat-icon {
+    color: #666;
+  }
+  
+  &.active {
+    background-color: rgba(25, 118, 210, 0.1);
+    color: #1976d2;
+    
+    mat-icon {
+      color: #1976d2;
+    }
+  }
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+}
+
+.content {
+  padding: 24px;
+  background-color: #f5f5f5;
+  min-height: calc(100vh - 64px);
+}
+
+.main-content {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+
