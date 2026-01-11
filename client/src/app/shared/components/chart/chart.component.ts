@@ -89,11 +89,30 @@ export class ChartComponent implements OnInit, OnChanges {
         }]
       };
     } else if (this.config.type === 'bar') {
+      const yAxisConfig: any = {
+        type: 'value',
+        axisLabel: {
+          formatter: (value: any) => {
+            // Format large numbers with locale string
+            if (value >= 1000) {
+              return (value / 1000).toFixed(1) + 'k €';
+            }
+            return value.toLocaleString() + ' €';
+          }
+        }
+      };
+      
       this.chartOptions = {
         tooltip: {
           trigger: 'axis',
           axisPointer: {
             type: 'shadow'
+          },
+          formatter: (params: any) => {
+            if (Array.isArray(params)) {
+              return params.map((p: any) => `${p.seriesName}<br/>${p.name}: ${p.value.toLocaleString()} €`).join('<br/>');
+            }
+            return `${params.seriesName}<br/>${params.name}: ${params.value.toLocaleString()} €`;
           }
         },
         grid: {
@@ -109,9 +128,7 @@ export class ChartComponent implements OnInit, OnChanges {
             alignWithLabel: true
           }
         },
-        yAxis: {
-          type: 'value'
-        },
+        yAxis: yAxisConfig,
         series: [{
           name: this.config.data.datasets[0].label || 'Value',
           type: 'bar',

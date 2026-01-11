@@ -1,11 +1,13 @@
-// Hero Section
-.hero-section {
-  background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+// Welcome Section
+.welcome-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 80px 24px;
-  text-align: center;
+  padding: 60px 24px;
   position: relative;
   overflow: hidden;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
   
   &::before {
     content: '';
@@ -18,52 +20,82 @@
     opacity: 0.3;
   }
   
-  .hero-content {
+  .welcome-content {
     position: relative;
     z-index: 1;
-    max-width: 900px;
+    max-width: 1200px;
     margin: 0 auto;
+    width: 100%;
   }
   
-  .hero-title {
-    font-size: 3.5rem;
-    font-weight: 700;
-    margin-bottom: 16px;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  }
-  
-  .hero-subtitle {
-    font-size: 1.5rem;
-    font-weight: 400;
-    margin-bottom: 24px;
-    opacity: 0.95;
-  }
-  
-  .hero-description {
-    font-size: 1.125rem;
+  .welcome-text-top {
+    text-align: center;
     margin-bottom: 48px;
-    opacity: 0.9;
-    line-height: 1.6;
+    
+    .main-title {
+      font-size: 4rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+      letter-spacing: -1px;
+    }
+    
+    .subtitle {
+      font-size: 1.75rem;
+      font-weight: 400;
+      margin-bottom: 24px;
+      opacity: 0.95;
+    }
+    
+    .description {
+      font-size: 1.125rem;
+      line-height: 1.8;
+      opacity: 0.9;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+  }
+  
+  .welcome-text-bottom {
+    text-align: center;
+    margin-top: 48px;
+    
+    .bottom-text {
+      font-size: 1.125rem;
+      opacity: 0.9;
+      
+      .highlight {
+        font-weight: 600;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+    }
   }
 }
 
-// Search Container
+// Search Section
+.search-section {
+  margin: 48px 0;
+}
+
 .search-container {
-  margin-top: 32px;
+  margin-bottom: 32px;
   
   .search-box {
     display: flex;
     gap: 12px;
     background: white;
-    border-radius: 16px;
-    padding: 8px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-    max-width: 900px;
+    border-radius: 20px;
+    padding: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 1000px;
     margin: 0 auto;
     
     .search-icon {
-      color: #64748b;
+      color: #667eea;
       margin: auto 12px;
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
     }
     
     .search-input,
@@ -72,8 +104,15 @@
       border: none;
       outline: none;
       font-size: 16px;
-      padding: 12px;
-      border-radius: 8px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: #f8f9fa;
+      transition: all 0.3s ease;
+      
+      &:focus {
+        background: white;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
       
       &::placeholder {
         color: #94a3b8;
@@ -81,12 +120,19 @@
     }
     
     .search-button {
-      padding: 12px 32px;
-      border-radius: 8px;
+      padding: 12px 40px;
+      border-radius: 12px;
       font-weight: 600;
       text-transform: none;
       font-size: 16px;
       white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      transition: all 0.3s ease;
+      
+      &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+      }
       
       mat-icon {
         margin-right: 8px;
@@ -95,31 +141,100 @@
   }
 }
 
-// Statistics Showcase
-.stats-showcase {
-  padding: 64px 24px;
-  background: white;
+// Filters Container
+.filters-container {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  margin-bottom: 32px;
+  backdrop-filter: blur(10px);
   
-  .container {
-    max-width: 1440px;
-    margin: 0 auto;
-  }
-  
-  .loading-container {
-    text-align: center;
-    padding: 60px 0;
-    color: #64748b;
+  .filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    align-items: end;
     
-    p {
-      margin-top: 16px;
-      font-size: 16px;
+    .filter-field {
+      width: 100%;
+    }
+    
+    .clear-button {
+      height: 56px;
+      color: #64748b;
+      
+      mat-icon {
+        margin-right: 8px;
+      }
+    }
+  }
+}
+
+// Heatmap Section
+.heatmap-section {
+  margin-top: 32px;
+  
+  .heatmap-card {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    
+    mat-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px;
+      border-bottom: 1px solid #e2e8f0;
+      
+      mat-card-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1e293b;
+        
+        mat-icon {
+          color: #667eea;
+        }
+      }
+      
+      .map-type-selector {
+        width: 200px;
+      }
+    }
+    
+    mat-card-content {
+      padding: 0;
+    }
+    
+    .map-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      color: #64748b;
+      
+      p {
+        margin-top: 16px;
+      }
+    }
+    
+    .map-container {
+      width: 100%;
+      height: 500px;
+      min-height: 500px;
+      border-radius: 0 0 20px 20px;
     }
   }
 }
 
 // Results Section
 .results-section {
-  padding: 48px 24px;
+  padding: 64px 24px;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   min-height: 100vh;
   
@@ -127,29 +242,16 @@
     max-width: 1440px;
     margin: 0 auto;
   }
+}
+
+// Statistics Section
+.stats-section {
+  margin-bottom: 48px;
   
-  .results-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 32px;
-    
-    h2 {
-      font-size: 2rem;
-      font-weight: 700;
-      color: #1e293b;
-      margin: 0 0 8px 0;
-    }
-    
-    p {
-      color: #64748b;
-      font-size: 1rem;
-      margin: 0;
-    }
-  }
-  
-  .results-stats {
-    margin-bottom: 48px;
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
   }
 }
 
@@ -161,102 +263,221 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
     gap: 24px;
-  }
-}
-
-.chart-card {
-  background: white;
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #2196f3 0%, #9c27b0 100%);
-  }
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  }
-  
-  .chart-header {
-    margin-bottom: 24px;
     
-    h3 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: #1e293b;
-      margin: 0;
-    }
-  }
-}
-
-// Job Listings
-.job-listings {
-  margin-top: 48px;
-  
-  .listings-header {
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: #1e293b;
-    margin-bottom: 24px;
-  }
-  
-  .jobs-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 24px;
-  }
-  
-  .job-card {
-    transition: all 0.3s ease;
-    border: 1px solid rgba(226, 232, 240, 0.8);
-    
-    &:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
-    }
-    
-    .job-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      margin: 16px 0;
-      font-size: 0.875rem;
-      color: #64748b;
+    .chart-card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
       
-      span {
-        display: flex;
-        align-items: center;
-        gap: 4px;
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      }
+      
+      &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      }
+      
+      &.chart-card-wide {
+        grid-column: 1 / -1;
+      }
+      
+      mat-card-header {
+        margin-bottom: 24px;
         
-        mat-icon {
-          font-size: 18px;
-          width: 18px;
-          height: 18px;
+        mat-card-title {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 1.25rem;
+          font-weight: 600;
+          color: #1e293b;
+          
+          mat-icon {
+            color: #667eea;
+          }
         }
       }
+    }
+  }
+}
+
+// Companies Section
+.companies-section {
+  margin: 48px 0;
+  
+  .section-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    
+    mat-card-header {
+      padding: 24px 24px 0;
       
-      .salary {
-        color: #16a34a;
+      mat-card-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.5rem;
         font-weight: 600;
+        color: #1e293b;
+        
+        mat-icon {
+          color: #667eea;
+        }
       }
     }
     
-    .job-description {
-      color: #475569;
-      line-height: 1.6;
-      margin: 16px 0;
+    mat-card-content {
+      padding: 24px;
+    }
+    
+    .companies-list {
+      display: grid;
+      gap: 16px;
+      
+      .company-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        
+        &:hover {
+          background: #e9ecef;
+          transform: translateX(4px);
+        }
+        
+        .company-info {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          
+          .company-icon {
+            color: #667eea;
+            font-size: 32px;
+            width: 32px;
+            height: 32px;
+          }
+          
+          .company-details {
+            h4 {
+              margin: 0 0 4px 0;
+              font-size: 1.125rem;
+              font-weight: 600;
+              color: #1e293b;
+            }
+            
+            p {
+              margin: 0;
+              color: #64748b;
+              font-size: 0.875rem;
+            }
+          }
+        }
+        
+        .company-stats {
+          .job-count {
+            background: #667eea;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.875rem;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Jobs Section
+.jobs-section {
+  margin: 48px 0;
+  
+  .section-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    
+    mat-card-header {
+      padding: 24px 24px 0;
+      
+      mat-card-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1e293b;
+        
+        mat-icon {
+          color: #667eea;
+        }
+      }
+    }
+    
+    mat-card-content {
+      padding: 24px;
+    }
+    
+    .jobs-list {
+      display: grid;
+      gap: 20px;
+      
+      .job-card {
+        transition: all 0.3s ease;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 12px;
+        
+        &:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+        }
+        
+        .job-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin: 16px 0;
+          
+          .job-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            
+            mat-icon {
+              font-size: 18px;
+              width: 18px;
+              height: 18px;
+            }
+            
+            &.salary-chip {
+              background: #10b981;
+              color: white;
+            }
+          }
+        }
+        
+        .job-description {
+          color: #475569;
+          line-height: 1.6;
+          margin: 16px 0;
+        }
+      }
     }
   }
 }
@@ -289,122 +510,25 @@
   }
 }
 
-// Error Message
-.error-message {
-  background: linear-gradient(135deg, #fee 0%, #fdd 100%);
-  border: 1px solid #fcc;
-  border-radius: 16px;
-  padding: 32px;
-  text-align: center;
-  color: #c33;
-  margin: 24px 0;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  
-  mat-icon {
-    font-size: 48px;
-    width: 48px;
-    height: 48px;
-    margin-bottom: 16px;
-  }
-  
-  p {
-    margin-bottom: 20px;
-    font-weight: 500;
-    font-size: 16px;
-  }
-}
-
-// Features Section
-.features-section {
-  padding: 80px 24px;
-  background: white;
-  
-  .container {
-    max-width: 1440px;
-    margin: 0 auto;
-  }
-  
-  h2 {
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: #1e293b;
-    text-align: center;
-    margin-bottom: 48px;
-  }
-  
-  .features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 32px;
-  }
-  
-  .feature-card {
-    text-align: center;
-    padding: 32px;
-    border-radius: 16px;
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    transition: all 0.3s ease;
-    
-    &:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
-    }
-    
-    mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      color: #1976d2;
-      margin-bottom: 16px;
-    }
-    
-    h3 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: #1e293b;
-      margin-bottom: 12px;
-    }
-    
-    p {
-      color: #64748b;
-      line-height: 1.6;
-      margin: 0;
-    }
-  }
-}
-
-// Section Headers
-.section-header {
-  margin-bottom: 32px;
-  
-  h2 {
-    font-size: 2rem;
-    font-weight: 600;
-    color: #1e293b;
-    margin: 0 0 8px 0;
-  }
-  
-  p {
-    color: #64748b;
-    font-size: 1rem;
-    margin: 0;
-  }
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
-}
-
-.loading-spinner {
+// Loading Overlay
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  min-height: 400px;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  justify-content: center;
+  z-index: 9999;
+  
+  p {
+    margin-top: 16px;
+    color: #64748b;
+    font-size: 1.125rem;
+  }
 }
 
 // Responsive Design
@@ -413,25 +537,27 @@
     grid-template-columns: 1fr;
   }
   
-  .jobs-grid {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  .chart-card-wide {
+    grid-column: 1;
   }
 }
 
 @media (max-width: 768px) {
-  .hero-section {
-    padding: 60px 16px;
+  .welcome-section {
+    padding: 40px 16px;
     
-    .hero-title {
-      font-size: 2.5rem;
-    }
-    
-    .hero-subtitle {
-      font-size: 1.25rem;
-    }
-    
-    .hero-description {
-      font-size: 1rem;
+    .welcome-text-top {
+      .main-title {
+        font-size: 2.5rem;
+      }
+      
+      .subtitle {
+        font-size: 1.25rem;
+      }
+      
+      .description {
+        font-size: 1rem;
+      }
     }
   }
   
@@ -449,6 +575,10 @@
     }
   }
   
+  .filters-container .filters-grid {
+    grid-template-columns: 1fr;
+  }
+  
   .stats-grid {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -458,16 +588,9 @@
     padding: 24px;
   }
   
-  .jobs-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .features-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .features-section h2 {
-    font-size: 2rem;
+  .map-container {
+    height: 400px !important;
+    min-height: 400px !important;
   }
 }
 

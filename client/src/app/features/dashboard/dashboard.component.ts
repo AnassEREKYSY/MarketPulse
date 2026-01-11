@@ -1,10 +1,9 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, AfterViewInit, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { JobsService } from '../../core/services/jobs.service';
-import { JobStatistics } from '../../core/models/statistics.model';
-import { JobOffer, SearchJobMarketResult } from '../../core/models/job-offer.model';
+import { JobStatistics, HeatMapData } from '../../core/models/statistics.model';
+import { JobOffer, SearchJobMarketResult, Company } from '../../core/models/job-offer.model';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,8 +11,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
+import { MatChipsModule } from '@angular/material/chips';
 import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
+import * as L from 'leaflet';
 
 @Component({
   selector: 'app-dashboard',
@@ -28,48 +29,86 @@ import { ChartComponent } from '../../shared/components/chart/chart.component';
     MatInputModule,
     MatFormFieldModule,
     MatSelectModule,
+    MatChipsModule,
     StatCardComponent,
     ChartComponent
   ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, AfterViewInit {
   private jobsService = inject(JobsService);
-  private router = inject(Router);
   
-  // Statistics for display
-  statistics: JobStatistics | null = null;
-  loading = true;
-  error: string | null = null;
+  @ViewChild('mapContainer', { static: false }) mapContainer!: ElementRef;
   
-  // Search functionality
+  // Search and filters
   searchQuery: string = '';
   searchLocation: string = '';
-  showSearchResults = false;
+  employmentType: string = '';
+  workMode: string = '';
+  experienceLevel: string = '';
+  minSalary: number | null = null;
+  maxSalary: number | null = null;
+  
+  // Data
+  statistics: JobStatistics | null = null;
   searchResults: SearchJobMarketResult | null = null;
+  heatMapData: HeatMapData | null = null;
+  
+  // Loading states
+  loading = false;
   searchLoading = false;
-  searchError: string | null = null;
-
-  employmentTypes = ['CDI', 'CDD', 'Freelance', 'Internship'];
-  workModes = ['Remote', 'Hybrid', 'Onsite'];
-
+  heatMapLoading = false;
+  
+  // Map
+  private map: L.Map | null = null;
+  private markers: (L.CircleMarker | L.Marker)[] = [];
+  mapType: 'jobs' | 'salary' = 'jobs';
+  
+  // Filter options
+  employmentTypes = ['CDI', 'CDD', 'Freelance', 'Internship', 'Other'];
+  workModes = ['Remote', 'Hybrid', 'Onsite', 'Flexible'];
+  experienceLevels = ['Junior', 'Mid', 'Senior', 'Lead', 'Any'];
+  
+  // Computed data
+  uniqueCompanies: Company[] = [];
+  
   ngOnInit() {
     this.loadStatistics();
   }
-
-  getTopLocationsCount(): number {
-    return this.statistics ? Object.keys(this.statistics.topLocations || {}).length : 0;
+  
+  ngAfterViewInit() {
+    // Initialize map after view is ready
+    setTimeout(() => {
+      this.initMap();
+      this.loadHeatMapData();
+    }, 100);
   }
-
-  getTopCompaniesCount(): number {
-    return this.statistics ? Object.keys(this.statistics.topCompanies || {}).length : 0;
+  
+  initMap() {
+    if (!this.mapContainer?.nativeElement) {
+      console.warn('Map container not found');
+      return;
+    }
+    
+    try {
+      this.map = L.map(this.mapContainer.nativeElement).setView([46.6034, 1.8883], 6);
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(this.map);
+      
+      if (this.heatMapData) {
+        this.updateMap();
+      }
+    } catch (error) {
+      console.error('Error initializing map:', error);
+    }
   }
-
+  
   loadStatistics() {
     this.loading = true;
-    this.error = null;
-    
     this.jobsService.getStatistics().subscribe({
       next: (stats) => {
         this.statistics = stats;
@@ -77,81 +116,132 @@ export class DashboardComponent implements OnInit {
       },
       error: (err) => {
         console.error('Error loading statistics:', err);
-        this.error = null; // Don't show error, just use empty stats
-        this.statistics = {
-          totalJobs: 0,
-          salaryStatistics: {
-            averageSalary: undefined,
-            medianSalary: undefined,
-            minSalary: undefined,
-            maxSalary: undefined,
-            averageSalaryByExperience: {},
-            averageSalaryByLocation: {}
-          },
-          topLocations: {},
-          topCompanies: {},
-          jobsByEmploymentType: {},
-          jobsByWorkMode: {},
-          jobsByExperienceLevel: {}
-        };
+        this.statistics = this.getEmptyStatistics();
         this.loading = false;
       }
     });
   }
-
+  
+  loadHeatMapData() {
+    this.heatMapLoading = true;
+    this.jobsService.getHeatMapData(undefined, this.mapType).subscribe({
+      next: (data) => {
+        this.heatMapData = data;
+        this.heatMapLoading = false;
+        if (this.map) {
+          this.updateMap();
+        }
+      },
+      error: (err) => {
+        console.error('Error loading heatmap:', err);
+        this.heatMapLoading = false;
+      }
+    });
+  }
+  
+  updateMap() {
+    if (!this.map || !this.heatMapData) return;
+    
+    // Clear existing markers
+    this.markers.forEach(marker => {
+      if (this.map) {
+        this.map.removeLayer(marker as any);
+      }
+    });
+    this.markers = [];
+    
+    // Add markers
+    this.heatMapData.points.forEach(point => {
+      const intensity = point.intensity / 100;
+      const color = this.mapType === 'jobs' 
+        ? `rgba(25, 118, 210, ${intensity})`
+        : `rgba(66, 165, 245, ${intensity})`;
+      
+      const marker = L.circleMarker([point.latitude, point.longitude], {
+        radius: Math.max(5, point.jobCount / 10),
+        fillColor: color,
+        color: '#1976d2',
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 0.6
+      });
+      
+      const popupContent = `
+        <div style="padding: 8px;">
+          <strong>${point.city}, ${point.country}</strong><br>
+          Jobs: ${point.jobCount}<br>
+          ${point.averageSalary ? `Avg Salary: ${point.averageSalary.toFixed(0)} EUR/year` : ''}
+        </div>
+      `;
+      
+      marker.bindPopup(popupContent);
+      marker.addTo(this.map!);
+      this.markers.push(marker as any);
+    });
+  }
+  
   onSearch() {
     if (!this.searchQuery && !this.searchLocation) {
       return;
     }
-
-    this.showSearchResults = true;
+    
     this.searchLoading = true;
-    this.searchError = null;
-
+    
     this.jobsService.searchJobs({
       query: this.searchQuery || undefined,
       location: this.searchLocation || undefined,
+      employmentType: this.employmentType || undefined,
+      workMode: this.workMode || undefined,
+      experienceLevel: this.experienceLevel || undefined,
+      minSalary: this.minSalary || undefined,
+      maxSalary: this.maxSalary || undefined,
       page: 1,
-      pageSize: 50
+      pageSize: 100
     }).subscribe({
       next: (result) => {
         this.searchResults = result;
         this.searchLoading = false;
         
-        // Load statistics for the search results
-        if (this.searchLocation) {
-          this.loadStatisticsForLocation(this.searchLocation);
-        }
+        // Extract unique companies
+        const companyMap = new Map<string, Company>();
+        result.jobs.forEach(job => {
+          if (job.company && !companyMap.has(job.company.id)) {
+            companyMap.set(job.company.id, job.company);
+          }
+        });
+        this.uniqueCompanies = Array.from(companyMap.values());
+        
+        // Load statistics for search results
+        this.loadStatistics();
+        this.loadHeatMapData();
       },
       error: (err) => {
         console.error('Search error:', err);
-        this.searchError = 'Failed to search jobs. Please try again.';
         this.searchLoading = false;
       }
     });
   }
-
-  loadStatisticsForLocation(location: string) {
-    this.jobsService.getStatistics({ location }).subscribe({
-      next: (stats) => {
-        this.statistics = stats;
-      },
-      error: (err) => {
-        console.error('Error loading location statistics:', err);
-      }
-    });
-  }
-
-  clearSearch() {
-    this.showSearchResults = false;
-    this.searchResults = null;
+  
+  clearFilters() {
     this.searchQuery = '';
     this.searchLocation = '';
-    this.loadStatistics(); // Reload general statistics
+    this.employmentType = '';
+    this.workMode = '';
+    this.experienceLevel = '';
+    this.minSalary = null;
+    this.maxSalary = null;
+    this.searchResults = null;
+    this.uniqueCompanies = [];
+    this.loadStatistics();
   }
-
+  
+  onMapTypeChange() {
+    this.loadHeatMapData();
+  }
+  
+  // Chart data methods
   getEmploymentTypeChartData() {
-    if (!this.statistics || !this.statistics.jobsByEmploymentType) return null;
+    if (!this.statistics?.jobsByEmploymentType) return null;
     const data = this.statistics.jobsByEmploymentType;
     if (Object.keys(data).length === 0) return null;
     
@@ -161,7 +251,7 @@ export class DashboardComponent implements OnInit {
         labels: Object.keys(data),
         datasets: [{
           data: Object.values(data),
-          backgroundColor: ['#1976d2', '#42a5f5', '#90caf9', '#e3f2fd', '#bbdefb']
+          backgroundColor: ['#2196f3', '#9c27b0', '#00bcd4', '#4caf50', '#ff9800']
         }]
       },
       options: {
@@ -170,26 +260,25 @@ export class DashboardComponent implements OnInit {
         plugins: {
           title: {
             display: true,
-            text: 'Jobs by Employment Type'
+            text: 'Employment Type Distribution'
           }
         }
       }
     };
   }
-
+  
   getWorkModeChartData() {
-    if (!this.statistics || !this.statistics.jobsByWorkMode) return null;
+    if (!this.statistics?.jobsByWorkMode) return null;
     const data = this.statistics.jobsByWorkMode;
     if (Object.keys(data).length === 0) return null;
     
     return {
-      type: 'bar',
+      type: 'pie',
       data: {
         labels: Object.keys(data),
         datasets: [{
-          label: 'Jobs',
           data: Object.values(data),
-          backgroundColor: '#1976d2'
+          backgroundColor: ['#2196f3', '#9c27b0', '#00bcd4', '#4caf50']
         }]
       },
       options: {
@@ -198,16 +287,43 @@ export class DashboardComponent implements OnInit {
         plugins: {
           title: {
             display: true,
-            text: 'Jobs by Work Mode'
+            text: 'Work Mode Analysis'
           }
         }
       }
     };
   }
-
-  getExperienceChartData() {
-    if (!this.statistics || !this.statistics.jobsByExperienceLevel) return null;
+  
+  getExperienceLevelChartData() {
+    if (!this.statistics?.jobsByExperienceLevel) return null;
     const data = this.statistics.jobsByExperienceLevel;
+    if (Object.keys(data).length === 0) return null;
+    
+    return {
+      type: 'pie',
+      data: {
+        labels: Object.keys(data),
+        datasets: [{
+          data: Object.values(data),
+          backgroundColor: ['#2196f3', '#9c27b0', '#00bcd4', '#4caf50', '#ff9800']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: 'Experience Level Distribution'
+          }
+        }
+      }
+    };
+  }
+  
+  getSalaryChartData() {
+    if (!this.statistics?.salaryStatistics?.averageSalaryByExperience) return null;
+    const data = this.statistics.salaryStatistics.averageSalaryByExperience;
     if (Object.keys(data).length === 0) return null;
     
     return {
@@ -215,9 +331,9 @@ export class DashboardComponent implements OnInit {
       data: {
         labels: Object.keys(data),
         datasets: [{
-          label: 'Jobs',
+          label: 'Average Salary (EUR/year)',
           data: Object.values(data),
-          backgroundColor: '#42a5f5'
+          backgroundColor: '#2196f3'
         }]
       },
       options: {
@@ -226,11 +342,57 @@ export class DashboardComponent implements OnInit {
         plugins: {
           title: {
             display: true,
-            text: 'Jobs by Experience Level'
+            text: 'Salary by Experience Level'
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(value: any) {
+                return value.toLocaleString() + ' €';
+              }
+            }
           }
         }
       }
     };
   }
-
+  
+  getTopCompanies() {
+    if (!this.statistics?.topCompanies) return [];
+    return Object.entries(this.statistics.topCompanies)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
+  }
+  
+  getTopLocationsCount(): number {
+    if (!this.statistics?.topLocations) return 0;
+    return Object.keys(this.statistics.topLocations).length;
+  }
+  
+  getCompanyJobCount(companyId: string): number {
+    if (!this.searchResults?.jobs) return 0;
+    return this.searchResults.jobs.filter(job => job.company?.id === companyId).length;
+  }
+  
+  private getEmptyStatistics(): JobStatistics {
+    return {
+      totalJobs: 0,
+      salaryStatistics: {
+        averageSalary: undefined,
+        medianSalary: undefined,
+        minSalary: undefined,
+        maxSalary: undefined,
+        averageSalaryByExperience: {},
+        averageSalaryByLocation: {}
+      },
+      topLocations: {},
+      topCompanies: {},
+      jobsByEmploymentType: {},
+      jobsByWorkMode: {},
+      jobsByExperienceLevel: {}
+    };
+  }
 }
