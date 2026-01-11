@@ -1,75 +1,164 @@
 using System.Text.Json;
 using MarketPulse.Application.DTOs;
 using MarketPulse.Application.Interfaces;
+using Microsoft.Extensions.Logging;
+using System.IO;
+using System.Net;
 
 namespace MarketPulse.Infrastructure.Services;
 
 public class AdzunaJobProvider : IJobMarketProvider
 {
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
     private readonly ILogger<AdzunaJobProvider> _logger;
 
     public string ProviderName => "Adzuna";
 
     public AdzunaJobProvider(
-        HttpClient httpClient,
-        IConfiguration configuration,
         ILogger<AdzunaJobProvider> logger)
     {
-        _httpClient = httpClient;
-        _configuration = configuration;
         _logger = logger;
     }
 
-    public async Task<bool> IsAvailableAsync()
+    public Task<bool> IsAvailableAsync()
     {
-        try
-        {
-            var appId = Environment.GetEnvironmentVariable("ADZUNA_APP_ID") ?? _configuration["Adzuna:AppId"];
-            var appKey = Environment.GetEnvironmentVariable("ADZUNA_APP_KEY") ?? _configuration["Adzuna:AppKey"];
-            return !string.IsNullOrEmpty(appId) && !string.IsNullOrEmpty(appKey);
-        }
-        catch
-        {
-            return false;
-        }
+        var appId = Environment.GetEnvironmentVariable("ADZUNA_APP_ID");
+        var appKey = Environment.GetEnvironmentVariable("ADZUNA_APP_KEY");
+
+        return Task.FromResult(
+            !string.IsNullOrWhiteSpace(appId) &&
+            !string.IsNullOrWhiteSpace(appKey)
+        );
     }
 
-    public async Task<List<JobOfferDto>> SearchJobsAsync(string query, string? location = null, int page = 1, int pageSize = 50)
+    public async Task<List<JobOfferDto>> SearchJobsAsync(
+        string query,
+        string? location = null,
+        int page = 1,
+        int pageSize = 50)
     {
+        Console.WriteLine($"[AdzunaJobProvider] SearchJobsAsync called: query={query}, location={location}");
         try
         {
-            var appId = Environment.GetEnvironmentVariable("ADZUNA_APP_ID") ?? _configuration["Adzuna:AppId"];
-            var appKey = Environment.GetEnvironmentVariable("ADZUNA_APP_KEY") ?? _configuration["Adzuna:AppKey"];
-            var country = Environment.GetEnvironmentVariable("ADZUNA_COUNTRY") ?? _configuration["Adzuna:Country"] ?? "fr";
+            var appId = Environment.GetEnvironmentVariable("ADZUNA_APP_ID");
+            var appKey = Environment.GetEnvironmentVariable("ADZUNA_APP_KEY");
+            var country = Environment.GetEnvironmentVariable("ADZUNA_COUNTRY") ?? "fr";
 
-            if (string.IsNullOrEmpty(appId) || string.IsNullOrEmpty(appKey))
+            Console.WriteLine($"[AdzunaJobProvider] AppId present: {!string.IsNullOrWhiteSpace(appId)}, AppKey present: {!string.IsNullOrWhiteSpace(appKey)}");
+            _logger.LogInformation("Adzuna SearchJobsAsync called with Query={Query}, Location={Location}, Page={Page}, PageSize={PageSize}", 
+                query, location, page, pageSize);
+            
+            if (string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(appKey))
             {
-                _logger.LogWarning("Adzuna API credentials not configured");
+                _logger.LogError("Adzuna API credentials not configured. ADZUNA_APP_ID={AppId}, ADZUNA_APP_KEY={AppKey}", 
+                    string.IsNullOrWhiteSpace(appId) ? "MISSING" : "SET", 
+                    string.IsNullOrWhiteSpace(appKey) ? "MISSING" : "SET");
                 return new List<JobOfferDto>();
             }
+            
+            _logger.LogInformation("Adzuna API credentials found. AppId length: {Length}", appId.Length);
 
-            var url = $"https://api.adzuna.com/v1/api/jobs/{country}/search/{page}?" +
-                     $"app_id={appId}&app_key={appKey}&" +
-                     $"results_per_page={pageSize}&" +
-                     $"what={Uri.EscapeDataString(query)}";
+            var url =
+                $"https://api.adzuna.com/v1/api/jobs/{country}/search/{page}" +
+                $"?app_id={appId}" +
+                $"&app_key={appKey}" +
+                $"&results_per_page={pageSize}" +
+                $"&what={Uri.EscapeDataString(query ?? "")}";
 
-            if (!string.IsNullOrEmpty(location))
+            if (!string.IsNullOrWhiteSpace(location))
             {
                 url += $"&where={Uri.EscapeDataString(location)}";
             }
 
-            var response = await _httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
+            var maskedUrl = url.Replace(appId, "***").Replace(appKey, "***");
+            _logger.LogInformation("Adzuna API Request: {Url}", maskedUrl);
 
-            var content = await response.Content.ReadAsStringAsync();
-            var jsonDoc = JsonDocument.Parse(content);
-            var results = jsonDoc.RootElement.GetProperty("results");
+            // Use HttpWebRequest instead of HttpClient to bypass encoding issues with 'utf8' charset
+            // HttpClient's logging middleware tries to read content as string and fails on 'utf8'
+            string responseContent;
+            HttpStatusCode statusCode;
+            try
+            {
+                var request = (HttpWebRequest)WebRequest.Create(url);
+                request.Method = "GET";
+                request.Timeout = 30000;
+                request.Accept = "application/json";
+                
+                using var response = (HttpWebResponse)await request.GetResponseAsync();
+                statusCode = response.StatusCode;
+                
+                // Read response as bytes to avoid encoding issues
+                using var responseStream = response.GetResponseStream();
+                using var memoryStream = new MemoryStream();
+                await responseStream.CopyToAsync(memoryStream);
+                var responseBytes = memoryStream.ToArray();
+                responseContent = System.Text.Encoding.UTF8.GetString(responseBytes);
+            }
+            catch (WebException ex) when (ex.Response is HttpWebResponse httpResponse)
+            {
+                statusCode = httpResponse.StatusCode;
+                using var responseStream = httpResponse.GetResponseStream();
+                if (responseStream != null)
+                {
+                    using var memoryStream = new MemoryStream();
+                    await responseStream.CopyToAsync(memoryStream);
+                    var responseBytes = memoryStream.ToArray();
+                    responseContent = System.Text.Encoding.UTF8.GetString(responseBytes);
+                }
+                else
+                {
+                    responseContent = "";
+                }
+                _logger.LogError("Adzuna API Error: {StatusCode} - {Message}", statusCode, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error making HTTP request to Adzuna API");
+                return new List<JobOfferDto>();
+            }
+            
+            if (statusCode != HttpStatusCode.OK)
+            {
+                _logger.LogError("Adzuna API Error: {StatusCode} - {Content}", statusCode, responseContent);
+                return new List<JobOfferDto>();
+            }
+
+            _logger.LogInformation("Adzuna API Response Status: {StatusCode}, Content Length: {Length}", statusCode, responseContent.Length);
+            
+            // Log first 500 chars of response for debugging
+            if (responseContent.Length > 500)
+            {
+                _logger.LogInformation("Adzuna API Response (first 500 chars): {Json}", responseContent.Substring(0, 500));
+            }
+            else
+            {
+                _logger.LogInformation("Adzuna API Response: {Json}", responseContent);
+            }
+
+            var doc = JsonDocument.Parse(responseContent);
+            
+            // Log all root properties to understand the response structure
+            _logger.LogInformation("Adzuna API Response Root Properties: {Properties}", 
+                string.Join(", ", doc.RootElement.EnumerateObject().Select(p => p.Name)));
+            
+            if (!doc.RootElement.TryGetProperty("results", out var resultsElement))
+            {
+                _logger.LogWarning("Adzuna API response missing 'results' property. Available properties: {Properties}", 
+                    string.Join(", ", doc.RootElement.EnumerateObject().Select(p => p.Name)));
+                return new List<JobOfferDto>();
+            }
+            
+            if (resultsElement.ValueKind != JsonValueKind.Array)
+            {
+                _logger.LogWarning("Adzuna API 'results' property is not an array. Type: {Type}", resultsElement.ValueKind);
+                return new List<JobOfferDto>();
+            }
+            
+            var resultsCount = resultsElement.GetArrayLength();
+            _logger.LogInformation("Adzuna API returned {Count} results", resultsCount);
 
             var jobs = new List<JobOfferDto>();
 
-            foreach (var result in results.EnumerateArray())
+            foreach (var result in resultsElement.EnumerateArray())
             {
                 try
                 {
@@ -85,12 +174,12 @@ public class AdzunaJobProvider : IJobMarketProvider
                         Company = new CompanyDto
                         {
                             Id = Guid.NewGuid(),
-                            Name = result.TryGetProperty("company", out var company) ? company.GetString() ?? "Unknown" : "Unknown"
+                            Name = ExtractCompanyName(result)
                         },
                         Location = new LocationDto
                         {
                             Id = Guid.NewGuid(),
-                            City = result.TryGetProperty("location", out var loc) ? ExtractCity(loc.GetString() ?? "") : "",
+                            City = ExtractCity(result, location),
                             Country = country.ToUpper(),
                             CountryCode = country
                         },
@@ -108,6 +197,7 @@ public class AdzunaJobProvider : IJobMarketProvider
                 }
             }
 
+            _logger.LogInformation("Successfully parsed {Count} jobs from Adzuna", jobs.Count);
             return jobs;
         }
         catch (Exception ex)
@@ -117,10 +207,47 @@ public class AdzunaJobProvider : IJobMarketProvider
         }
     }
 
-    private string ExtractCity(string location)
+    private string ExtractCompanyName(JsonElement result)
     {
-        var parts = location.Split(',');
-        return parts.Length > 0 ? parts[0].Trim() : location;
+        // Try different property paths
+        if (result.TryGetProperty("company", out var company))
+        {
+            if (company.ValueKind == JsonValueKind.String)
+            {
+                return company.GetString() ?? "Unknown";
+            }
+            if (company.TryGetProperty("display_name", out var displayName))
+            {
+                return displayName.GetString() ?? "Unknown";
+            }
+            if (company.TryGetProperty("name", out var name))
+            {
+                return name.GetString() ?? "Unknown";
+            }
+        }
+        return "Unknown";
+    }
+
+    private string ExtractCity(JsonElement result, string? fallbackLocation)
+    {
+        if (result.TryGetProperty("location", out var location))
+        {
+            if (location.ValueKind == JsonValueKind.String)
+            {
+                var locStr = location.GetString() ?? "";
+                return locStr.Split(',')[0].Trim();
+            }
+            if (location.TryGetProperty("display_name", out var displayName))
+            {
+                var locStr = displayName.GetString() ?? "";
+                return locStr.Split(',')[0].Trim();
+            }
+            if (location.TryGetProperty("area", out var area))
+            {
+                return area.GetString() ?? "";
+            }
+        }
+        return fallbackLocation?.Split(',')[0].Trim() ?? "";
     }
 
     private string DetermineEmploymentType(JsonElement result)
@@ -142,7 +269,7 @@ public class AdzunaJobProvider : IJobMarketProvider
         var title = result.TryGetProperty("title", out var t) ? t.GetString()?.ToLower() ?? "" : "";
         var combined = $"{title} {description}";
 
-        if (combined.Contains("remote") || combined.Contains("télétravail"))
+        if (combined.Contains("remote") || combined.Contains("télétravail") || combined.Contains("travail à distance"))
             return "Remote";
         if (combined.Contains("hybrid") || combined.Contains("hybride"))
             return "Hybrid";
@@ -155,11 +282,11 @@ public class AdzunaJobProvider : IJobMarketProvider
         var title = result.TryGetProperty("title", out var t) ? t.GetString()?.ToLower() ?? "" : "";
         var combined = $"{title} {description}";
 
-        if (combined.Contains("senior") || combined.Contains("lead") || combined.Contains("principal"))
+        if (combined.Contains("senior") || combined.Contains("lead") || combined.Contains("principal") || combined.Contains("expert"))
             return "Senior";
-        if (combined.Contains("mid") || combined.Contains("middle"))
+        if (combined.Contains("mid") || combined.Contains("middle") || combined.Contains("intermediate"))
             return "Mid";
-        if (combined.Contains("junior") || combined.Contains("entry"))
+        if (combined.Contains("junior") || combined.Contains("entry") || combined.Contains("débutant"))
             return "Junior";
         return "Any";
     }
@@ -185,5 +312,3 @@ public class AdzunaJobProvider : IJobMarketProvider
         };
     }
 }
-
-

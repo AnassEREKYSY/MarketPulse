@@ -34,7 +34,7 @@ export class MapsComponent implements OnInit, AfterViewInit {
   mapType: 'jobs' | 'salary' = 'jobs';
   
   private map: L.Map | null = null;
-  private markers: L.Marker[] = [];
+  private markers: (L.CircleMarker | L.Marker)[] = [];
 
   ngOnInit() {
     this.loadHeatMapData();
@@ -85,7 +85,11 @@ export class MapsComponent implements OnInit, AfterViewInit {
     if (!this.map || !this.heatMapData) return;
 
     // Clear existing markers
-    this.markers.forEach(marker => this.map!.removeLayer(marker));
+    this.markers.forEach(marker => {
+      if (this.map) {
+        this.map.removeLayer(marker as any);
+      }
+    });
     this.markers = [];
 
     // Add markers for each point
@@ -114,7 +118,7 @@ export class MapsComponent implements OnInit, AfterViewInit {
 
       marker.bindPopup(popupContent);
       marker.addTo(this.map!);
-      this.markers.push(marker);
+      this.markers.push(marker as any);
     });
   }
 }

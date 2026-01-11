@@ -2,20 +2,19 @@ using MediatR;
 using MarketPulse.Application.DTOs;
 using MarketPulse.Application.Interfaces;
 using MarketPulse.Application.Queries;
-using MarketPulse.Infrastructure.Repositories;
 
 namespace MarketPulse.Application.Handlers;
 
 public class GetTrendsQueryHandler : IRequestHandler<GetTrendsQuery, TrendDataDto>
 {
-    private readonly IJobOfferRepository _jobRepository;
+    private readonly IJobMarketProvider _jobMarketProvider;
     private readonly ICacheService _cacheService;
 
     public GetTrendsQueryHandler(
-        IJobOfferRepository jobRepository,
+        IJobMarketProvider jobMarketProvider,
         ICacheService cacheService)
     {
-        _jobRepository = jobRepository;
+        _jobMarketProvider = jobMarketProvider;
         _cacheService = cacheService;
     }
 
@@ -29,21 +28,21 @@ public class GetTrendsQueryHandler : IRequestHandler<GetTrendsQuery, TrendDataDt
             return cachedTrends;
         }
 
-        var allJobs = await _jobRepository.GetAllWithIncludesAsync();
-        var jobs = allJobs.AsQueryable();
+        // Fetch jobs from external providers
+        var allJobs = await _jobMarketProvider.SearchJobsAsync(
+            string.Empty,
+            request.Location,
+            1,
+            1000);
 
-        if (!string.IsNullOrEmpty(request.Location))
-        {
-            jobs = jobs.Where(j => j.Location.City.Contains(request.Location) || 
-                                   j.Location.Country.Contains(request.Location));
-        }
+        var jobList = allJobs.ToList();
 
+        // Filter by date if needed
         var fromDate = DateTime.UtcNow.AddDays(-request.Days);
-        jobs = jobs.Where(j => j.PublishedDate >= fromDate);
-
-        var jobList = jobs.ToList();
+        jobList = jobList.Where(j => j.PublishedDate != default(DateTime) && j.PublishedDate >= fromDate).ToList();
 
         var hiringTrends = jobList
+            .Where(j => j.PublishedDate != default(DateTime))
             .GroupBy(j => j.PublishedDate.Date)
             .OrderBy(g => g.Key)
             .Select(g => new TrendPointDto
@@ -55,13 +54,13 @@ public class GetTrendsQueryHandler : IRequestHandler<GetTrendsQuery, TrendDataDt
             .ToList();
 
         var salaryTrends = jobList
-            .Where(j => j.SalaryRange != null)
+            .Where(j => j.SalaryRange != null && j.PublishedDate != default(DateTime))
             .GroupBy(j => j.PublishedDate.Date)
             .OrderBy(g => g.Key)
             .Select(g => new TrendPointDto
             {
                 Date = g.Key,
-                Value = g.Average(j => j.SalaryRange!.NormalizeToYearly().AverageSalary),
+                Value = g.Average(j => j.SalaryRange!.AverageSalary),
                 Count = g.Count()
             })
             .ToList();
@@ -69,9 +68,10 @@ public class GetTrendsQueryHandler : IRequestHandler<GetTrendsQuery, TrendDataDt
         var trendsByCategory = new Dictionary<string, List<TrendPointDto>>();
 
         // Trends by employment type
-        foreach (var employmentType in Enum.GetValues<Domain.Enums.EmploymentType>())
+        var employmentTypes = jobList.Select(j => j.EmploymentType).Distinct().Where(e => !string.IsNullOrEmpty(e));
+        foreach (var employmentType in employmentTypes)
         {
-            var categoryJobs = jobList.Where(j => j.EmploymentType == employmentType);
+            var categoryJobs = jobList.Where(j => j.EmploymentType == employmentType && j.PublishedDate != default(DateTime));
             trendsByCategory[$"EmploymentType_{employmentType}"] = categoryJobs
                 .GroupBy(j => j.PublishedDate.Date)
                 .OrderBy(g => g.Key)

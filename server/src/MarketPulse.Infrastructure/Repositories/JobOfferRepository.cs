@@ -5,11 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MarketPulse.Infrastructure.Repositories;
 
-public interface IJobOfferRepository : IRepository<JobOffer>
-{
-    Task<IEnumerable<JobOffer>> GetAllWithIncludesAsync();
-}
-
 public class JobOfferRepository : Repository<JobOffer>, IJobOfferRepository
 {
     public JobOfferRepository(ApplicationDbContext context) : base(context)

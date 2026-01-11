@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MarketPulse.Application.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace MarketPulse.Infrastructure.Services;
 

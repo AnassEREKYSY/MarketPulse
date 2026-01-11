@@ -2,20 +2,19 @@ using MediatR;
 using MarketPulse.Application.DTOs;
 using MarketPulse.Application.Interfaces;
 using MarketPulse.Application.Queries;
-using MarketPulse.Infrastructure.Repositories;
 
 namespace MarketPulse.Application.Handlers;
 
 public class GetHeatMapDataQueryHandler : IRequestHandler<GetHeatMapDataQuery, HeatMapDataDto>
 {
-    private readonly IJobOfferRepository _jobRepository;
+    private readonly IJobMarketProvider _jobMarketProvider;
     private readonly ICacheService _cacheService;
 
     public GetHeatMapDataQueryHandler(
-        IJobOfferRepository jobRepository,
+        IJobMarketProvider jobMarketProvider,
         ICacheService cacheService)
     {
-        _jobRepository = jobRepository;
+        _jobMarketProvider = jobMarketProvider;
         _cacheService = cacheService;
     }
 
@@ -29,41 +28,46 @@ public class GetHeatMapDataQueryHandler : IRequestHandler<GetHeatMapDataQuery, H
             return cachedData;
         }
 
-        var allJobs = await _jobRepository.GetAllWithIncludesAsync();
-        var jobs = allJobs.AsQueryable();
+        // Fetch jobs from external providers
+        var allJobs = await _jobMarketProvider.SearchJobsAsync(
+            string.Empty,
+            request.Country,
+            1,
+            1000);
 
-        if (!string.IsNullOrEmpty(request.Country))
-        {
-            jobs = jobs.Where(j => j.Location.Country == request.Country || 
-                                   j.Location.CountryCode == request.Country);
-        }
-
-        var jobList = jobs.Where(j => j.Location.Latitude.HasValue && j.Location.Longitude.HasValue).ToList();
+        var jobList = allJobs.Where(j => j.Location != null && 
+                                         j.Location.Latitude.HasValue && 
+                                         j.Location.Longitude.HasValue).ToList();
 
         var locationGroups = jobList
-            .GroupBy(j => new { j.Location.City, j.Location.Country, j.Location.Latitude, j.Location.Longitude })
+            .GroupBy(j => new { 
+                City = j.Location!.City ?? "Unknown", 
+                Country = j.Location!.Country ?? "Unknown", 
+                Latitude = j.Location!.Latitude!.Value, 
+                Longitude = j.Location!.Longitude!.Value 
+            })
             .ToList();
 
         var maxCount = locationGroups.Any() ? locationGroups.Max(g => g.Count()) : 1;
         var maxSalary = jobList.Where(j => j.SalaryRange != null)
-            .Select(j => j.SalaryRange!.NormalizeToYearly().AverageSalary)
+            .Select(j => j.SalaryRange!.AverageSalary)
             .DefaultIfEmpty(0)
             .Max();
 
         var points = locationGroups.Select(g => new HeatMapPointDto
         {
-            Latitude = g.Key.Latitude!.Value,
-            Longitude = g.Key.Longitude!.Value,
+            Latitude = g.Key.Latitude,
+            Longitude = g.Key.Longitude,
             City = g.Key.City,
             Country = g.Key.Country,
             JobCount = g.Count(),
             AverageSalary = g.Where(j => j.SalaryRange != null)
-                .Select(j => j.SalaryRange!.NormalizeToYearly().AverageSalary)
+                .Select(j => j.SalaryRange!.AverageSalary)
                 .DefaultIfEmpty(0)
                 .Average(),
             Intensity = request.DataType == "salary" && maxSalary > 0
                 ? (int)((g.Where(j => j.SalaryRange != null)
-                    .Select(j => j.SalaryRange!.NormalizeToYearly().AverageSalary)
+                    .Select(j => j.SalaryRange!.AverageSalary)
                     .DefaultIfEmpty(0)
                     .Average() / maxSalary) * 100)
                 : (int)((g.Count() / (double)maxCount) * 100)
@@ -78,7 +82,7 @@ public class GetHeatMapDataQueryHandler : IRequestHandler<GetHeatMapDataQuery, H
             AverageSalaryByLocation = locationGroups.ToDictionary(
                 g => $"{g.Key.City}, {g.Key.Country}",
                 g => g.Where(j => j.SalaryRange != null)
-                    .Select(j => j.SalaryRange!.NormalizeToYearly().AverageSalary)
+                    .Select(j => j.SalaryRange!.AverageSalary)
                     .DefaultIfEmpty(0)
                     .Average())
         };

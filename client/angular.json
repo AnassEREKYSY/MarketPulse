@@ -29,10 +29,13 @@
               "src/assets"
             ],
             "styles": [
-              "src/styles.scss",
-              "@angular/material/prebuilt-themes/azure-blue.css"
+              "@angular/material/prebuilt-themes/azure-blue.css",
+              "src/styles.scss"
             ],
-            "scripts": []
+            "scripts": [],
+            "allowedCommonJsDependencies": [
+              "leaflet"
+            ]
           }
         },
         "serve": {
@@ -44,6 +47,9 @@
         }
       }
     }
+  },
+  "cli": {
+    "analytics": "1fedaaf7-65da-4d1c-bdee-816371ccc172"
   }
 }
 

@@ -10,11 +10,6 @@
     "Redis": "${REDIS_HOST}:${REDIS_PORT}"
   },
   "Adzuna": {
-    "AppId": "${ADZUNA_APP_ID}",
-    "AppKey": "${ADZUNA_APP_KEY}",
     "Country": "${ADZUNA_COUNTRY}"
-  },
-  "JSearch": {
-    "ApiKey": "${JSEARCH_API_KEY}"
   }
 }

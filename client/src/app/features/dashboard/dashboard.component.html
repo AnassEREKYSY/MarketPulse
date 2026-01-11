@@ -1,61 +1,249 @@
-<div class="dashboard-container">
-  <h1>Dashboard</h1>
-  
-  <div *ngIf="loading" class="loading-spinner">
-    <mat-spinner></mat-spinner>
+<!-- Hero Section with Search -->
+<div class="hero-section">
+  <div class="hero-content">
+    <h1 class="hero-title">MarketPulse Jobs</h1>
+    <p class="hero-subtitle">Your Gateway to Job Market Intelligence</p>
+    <p class="hero-description">
+      Discover real-time job opportunities, salary insights, and market trends. 
+      Search thousands of job listings across multiple sources.
+    </p>
+    
+    <!-- Search Bar -->
+    <div class="search-container">
+      <div class="search-box">
+        <mat-icon class="search-icon">search</mat-icon>
+        <input 
+          matInput 
+          type="text" 
+          placeholder="Search jobs (e.g., Software Engineer, Data Analyst...)" 
+          [(ngModel)]="searchQuery"
+          (keyup.enter)="onSearch()"
+          class="search-input">
+        <input 
+          matInput 
+          type="text" 
+          placeholder="Location (e.g., Paris, France)" 
+          [(ngModel)]="searchLocation"
+          (keyup.enter)="onSearch()"
+          class="search-location">
+        <button mat-raised-button color="primary" (click)="onSearch()" [disabled]="searchLoading" class="search-button">
+          <mat-icon *ngIf="!searchLoading">search</mat-icon>
+          <mat-spinner *ngIf="searchLoading" diameter="20"></mat-spinner>
+          Search
+        </button>
+      </div>
+    </div>
   </div>
+</div>
 
-  <div *ngIf="error" class="error-message">
-    <p>{{ error }}</p>
-    <button mat-raised-button color="primary" (click)="loadStatistics()">Retry</button>
-  </div>
+<!-- Statistics Showcase -->
+<div *ngIf="!showSearchResults" class="stats-showcase">
+  <div class="container">
+    <div class="section-header">
+      <h2>Market Overview</h2>
+      <p>Real-time job market insights</p>
+    </div>
+    
+    <div *ngIf="loading" class="loading-container">
+      <mat-spinner diameter="50"></mat-spinner>
+      <p>Loading statistics...</p>
+    </div>
 
-  <div *ngIf="statistics && !loading" class="dashboard-content">
-    <div class="stats-grid">
+    <div *ngIf="statistics && !loading" class="stats-grid">
       <app-stat-card
         title="Total Jobs"
-        [value]="statistics.totalJobs"
-        icon="work"
+        [value]="statistics.totalJobs || 0"
+        icon="work_outline"
         color="primary">
       </app-stat-card>
       
       <app-stat-card
+        *ngIf="statistics.salaryStatistics?.averageSalary !== undefined && statistics.salaryStatistics?.averageSalary !== null"
         title="Average Salary"
-        [value]="statistics.salaryStatistics.averageSalary || 0"
+        [value]="statistics.salaryStatistics!.averageSalary!"
         format="currency"
-        icon="attach_money"
+        icon="payments"
         color="accent">
       </app-stat-card>
       
       <app-stat-card
         title="Top Locations"
-        [value]="Object.keys(statistics.topLocations).length"
+        [value]="getTopLocationsCount()"
         icon="location_on"
         color="primary">
       </app-stat-card>
       
       <app-stat-card
         title="Top Companies"
-        [value]="Object.keys(statistics.topCompanies).length"
-        icon="business"
+        [value]="getTopCompaniesCount()"
+        icon="business_center"
         color="accent">
       </app-stat-card>
-    </div>
-
-    <div class="charts-grid">
-      <div class="chart-card">
-        <app-chart [config]="getEmploymentTypeChartData()"></app-chart>
-      </div>
-      
-      <div class="chart-card">
-        <app-chart [config]="getWorkModeChartData()"></app-chart>
-      </div>
-      
-      <div class="chart-card">
-        <app-chart [config]="getExperienceChartData()"></app-chart>
-      </div>
     </div>
   </div>
 </div>
 
+<!-- Search Results Section -->
+<div *ngIf="showSearchResults" class="results-section">
+  <div class="container">
+    <div class="results-header">
+      <div>
+        <h2>Search Results</h2>
+        <p *ngIf="searchResults">
+          Found {{ searchResults.totalCount || 0 }} jobs
+          <span *ngIf="searchQuery">for "{{ searchQuery }}"</span>
+          <span *ngIf="searchLocation">in {{ searchLocation }}</span>
+        </p>
+      </div>
+      <button mat-icon-button (click)="clearSearch()" title="Clear search">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
 
+    <!-- Statistics for Search Results -->
+    <div *ngIf="statistics" class="results-stats">
+      <div class="stats-grid">
+        <app-stat-card
+          title="Jobs Found"
+          [value]="searchResults?.totalCount || 0"
+          icon="work_outline"
+          color="primary">
+        </app-stat-card>
+        
+        <app-stat-card
+          *ngIf="statistics.salaryStatistics?.averageSalary !== undefined && statistics.salaryStatistics?.averageSalary !== null"
+          title="Average Salary"
+          [value]="statistics.salaryStatistics!.averageSalary!"
+          format="currency"
+          icon="payments"
+          color="accent">
+        </app-stat-card>
+        
+        <app-stat-card
+          title="Top Locations"
+          [value]="getTopLocationsCount()"
+          icon="location_on"
+          color="primary">
+        </app-stat-card>
+        
+        <app-stat-card
+          title="Top Companies"
+          [value]="getTopCompaniesCount()"
+          icon="business_center"
+          color="accent">
+        </app-stat-card>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div *ngIf="statistics && (getEmploymentTypeChartData() || getWorkModeChartData() || getExperienceChartData())" class="charts-section">
+      <div class="charts-grid">
+        <div *ngIf="getEmploymentTypeChartData()" class="chart-card">
+          <div class="chart-header">
+            <h3>Employment Type Distribution</h3>
+          </div>
+          <app-chart [config]="getEmploymentTypeChartData()"></app-chart>
+        </div>
+        
+        <div *ngIf="getWorkModeChartData()" class="chart-card">
+          <div class="chart-header">
+            <h3>Work Mode Analysis</h3>
+          </div>
+          <app-chart [config]="getWorkModeChartData()"></app-chart>
+        </div>
+        
+        <div *ngIf="getExperienceChartData()" class="chart-card">
+          <div class="chart-header">
+            <h3>Experience Level</h3>
+          </div>
+          <app-chart [config]="getExperienceChartData()"></app-chart>
+        </div>
+      </div>
+    </div>
+
+    <!-- Job Listings -->
+    <div *ngIf="searchResults && searchResults.jobs && searchResults.jobs.length > 0" class="job-listings">
+      <h3 class="listings-header">Job Listings</h3>
+      <div class="jobs-grid">
+        <mat-card *ngFor="let job of searchResults.jobs" class="job-card">
+          <mat-card-header>
+            <mat-card-title>{{ job.title }}</mat-card-title>
+            <mat-card-subtitle>
+              <span *ngIf="job.company?.name">{{ job.company.name }}</span>
+              <span *ngIf="job.location?.city"> • {{ job.location.city }}</span>
+              <span *ngIf="job.location?.country">, {{ job.location.country }}</span>
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="job-meta">
+              <span *ngIf="job.salaryRange?.minSalary && job.salaryRange?.maxSalary" class="salary">
+                <mat-icon>payments</mat-icon>
+                {{ job.salaryRange!.minSalary | number }}€ - {{ job.salaryRange!.maxSalary | number }}€
+              </span>
+              <span *ngIf="job.employmentType" class="employment-type">
+                <mat-icon>work</mat-icon>
+                {{ job.employmentType }}
+              </span>
+              <span *ngIf="job.workMode" class="work-mode">
+                <mat-icon>location_on</mat-icon>
+                {{ job.workMode }}
+              </span>
+            </div>
+            <p *ngIf="job.description" class="job-description">
+              {{ (job.description | slice:0:200) }}...
+            </p>
+          </mat-card-content>
+          <mat-card-actions>
+            <a mat-button color="primary" [href]="job.sourceUrl" target="_blank" *ngIf="job.sourceUrl">
+              View Details
+              <mat-icon>open_in_new</mat-icon>
+            </a>
+          </mat-card-actions>
+        </mat-card>
+      </div>
+    </div>
+
+    <!-- No Results -->
+    <div *ngIf="searchResults && searchResults.jobs && searchResults.jobs.length === 0" class="no-results">
+      <mat-icon>search_off</mat-icon>
+      <h3>No jobs found</h3>
+      <p>Try adjusting your search criteria</p>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="searchError" class="error-message">
+      <mat-icon>error_outline</mat-icon>
+      <p>{{ searchError }}</p>
+      <button mat-raised-button color="primary" (click)="onSearch()">Try Again</button>
+    </div>
+  </div>
+</div>
+
+<!-- Features Section (shown when no search) -->
+<div *ngIf="!showSearchResults" class="features-section">
+  <div class="container">
+    <h2>Why Choose MarketPulse Jobs?</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <mat-icon>analytics</mat-icon>
+        <h3>Real-Time Analytics</h3>
+        <p>Get up-to-date market statistics and salary insights</p>
+      </div>
+      <div class="feature-card">
+        <mat-icon>map</mat-icon>
+        <h3>Interactive Maps</h3>
+        <p>Visualize job density and opportunities across locations</p>
+      </div>
+      <div class="feature-card">
+        <mat-icon>trending_up</mat-icon>
+        <h3>Market Trends</h3>
+        <p>Track hiring trends and salary movements over time</p>
+      </div>
+      <div class="feature-card">
+        <mat-icon>search</mat-icon>
+        <h3>Smart Search</h3>
+        <p>Advanced filtering and search across multiple job sources</p>
+      </div>
+    </div>
+  </div>
+</div>

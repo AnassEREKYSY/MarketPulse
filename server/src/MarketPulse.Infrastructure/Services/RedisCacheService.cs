@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MarketPulse.Application.Interfaces;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
 namespace MarketPulse.Infrastructure.Services;

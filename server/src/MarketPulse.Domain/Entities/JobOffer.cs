@@ -1,3 +1,6 @@
+using MarketPulse.Domain.Enums;
+using MarketPulse.Domain.ValueObjects;
+
 namespace MarketPulse.Domain.Entities;
 
 public class JobOffer

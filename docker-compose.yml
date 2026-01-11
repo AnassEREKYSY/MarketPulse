@@ -1,21 +1,4 @@
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: marketpulse-postgres
-    environment:
-      POSTGRES_DB: marketpulse
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     container_name: marketpulse-redis
@@ -35,23 +18,15 @@ services:
       dockerfile: Dockerfile
     container_name: marketpulse-api
     ports:
-      - "5000:8080"
+      - "5190:8080"
     env_file:
       - .env
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=marketpulse
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    # Redis is optional - API will use in-memory cache if Redis is unavailable
+    # No depends_on needed since Redis connection is handled gracefully
 
   client:
     build:
@@ -66,5 +41,4 @@ services:
       - API_URL=http://api:8080
 
 volumes:
-  postgres_data:
   redis_data:
