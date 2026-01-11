@@ -1,14 +1,19 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges, ViewChild, ElementRef } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NgxEchartsModule } from 'ngx-echarts';
-import * as echarts from 'echarts';
+import { NgxEchartsDirective } from 'ngx-echarts';
 
 @Component({
   selector: 'app-chart',
   standalone: true,
-  imports: [CommonModule, NgxEchartsModule],
+  imports: [CommonModule, NgxEchartsDirective],
   template: '<div echarts [options]="chartOptions" [loading]="loading" class="chart-container"></div>',
-  styles: ['.chart-container { width: 100%; height: 100%; min-height: 300px; }']
+  styles: [`
+    .chart-container {
+      width: 100%;
+      height: 400px;
+      min-height: 400px;
+    }
+  `]
 })
 export class ChartComponent implements OnInit, OnChanges {
   @Input() config: any;
@@ -45,18 +50,42 @@ export class ChartComponent implements OnInit, OnChanges {
         series: [{
           name: this.config.options?.plugins?.title?.text || 'Data',
           type: 'pie',
-          radius: '50%',
-          data: this.config.data.labels.map((label: string, index: number) => ({
-            value: this.config.data.datasets[0].data[index],
-            name: label
-          })),
+          radius: ['40%', '70%'],
+          avoidLabelOverlap: true,
+          itemStyle: {
+            borderRadius: 8,
+            borderColor: '#fff',
+            borderWidth: 2
+          },
+          label: {
+            show: true,
+            formatter: '{b}: {c} ({d}%)',
+            fontSize: 12,
+            fontWeight: 500
+          },
           emphasis: {
+            label: {
+              show: true,
+              fontSize: 14,
+              fontWeight: 600
+            },
             itemStyle: {
-              shadowBlur: 10,
+              shadowBlur: 20,
               shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)'
+              shadowColor: 'rgba(0, 0, 0, 0.3)'
             }
-          }
+          },
+          data: this.config.data.labels.map((label: string, index: number) => {
+            const bgColors = this.config.data.datasets[0].backgroundColor;
+            const color = Array.isArray(bgColors) 
+              ? (bgColors[index] || this.getColor(index))
+              : (bgColors || this.getColor(index));
+            return {
+              value: this.config.data.datasets[0].data[index],
+              name: label,
+              itemStyle: { color }
+            };
+          })
         }]
       };
     } else if (this.config.type === 'bar') {
@@ -86,9 +115,29 @@ export class ChartComponent implements OnInit, OnChanges {
         series: [{
           name: this.config.data.datasets[0].label || 'Value',
           type: 'bar',
-          data: this.config.data.datasets[0].data,
-          itemStyle: {
-            color: this.config.data.datasets[0].backgroundColor || '#1976d2'
+          barWidth: '60%',
+          data: this.config.data.datasets[0].data.map((value: number, index: number) => {
+            const bgColor = this.config.data.datasets[0].backgroundColor;
+            const color = Array.isArray(bgColor) 
+              ? (bgColor[index] || '#1976d2')
+              : (typeof bgColor === 'string' ? bgColor : '#1976d2');
+            return {
+              value: value,
+              itemStyle: { color }
+            };
+          }),
+          label: {
+            show: true,
+            position: 'top',
+            fontSize: 11,
+            fontWeight: 500
+          },
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 10,
+              shadowOffsetY: 5,
+              shadowColor: 'rgba(0, 0, 0, 0.2)'
+            }
           }
         }]
       };
@@ -120,6 +169,12 @@ export class ChartComponent implements OnInit, OnChanges {
       };
     }
   }
+
+  private getColor(index: number): string {
+    const colors = [
+      '#2196f3', '#9c27b0', '#00bcd4', '#4caf50', '#ff9800',
+      '#f44336', '#795548', '#607d8b', '#e91e63', '#009688'
+    ];
+    return colors[index % colors.length];
+  }
 }
-
-

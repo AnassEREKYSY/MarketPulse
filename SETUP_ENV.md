@@ -20,11 +20,11 @@
 
 ### For Local Development (.NET)
 
-The application uses the `DotNetEnv` package to load environment variables from the `.env` file. The code checks environment variables first, then falls back to `appsettings.json`.
+The application uses the `DotNetEnv` package to load environment variables from the `.env` file. **All sensitive values (API keys, credentials) MUST come from environment variables** - there is no fallback to `appsettings.json` for security reasons.
 
-**Priority Order:**
-1. Environment variables (from `.env` file or system)
-2. `appsettings.json` (defaults/fallback)
+**Security Model:**
+- ✅ Environment variables (from `.env` file or system) - **REQUIRED for API keys**
+- ✅ `appsettings.json` - Only contains placeholders like `${ADZUNA_APP_ID}` (not actual values)
 
 ### For Docker
 
@@ -34,9 +34,10 @@ Docker Compose automatically loads the `.env` file and passes variables to conta
 
 ### Required for API Functionality
 
-- `ADZUNA_APP_ID` - Get from https://developer.adzuna.com/
-- `ADZUNA_APP_KEY` - Get from https://developer.adzuna.com/
-- `JSEARCH_API_KEY` - Get from https://rapidapi.com/ (optional, fallback)
+- `ADZUNA_APP_ID` - **REQUIRED** - Get from https://developer.adzuna.com/
+- `ADZUNA_APP_KEY` - **REQUIRED** - Get from https://developer.adzuna.com/
+- `ADZUNA_COUNTRY` - Optional (defaults to "fr") - Country code for Adzuna API
+- `JSEARCH_API_KEY` - **REQUIRED** - Get from https://rapidapi.com/ (used as fallback if Adzuna fails)
 
 ### Database (Optional - defaults provided)
 

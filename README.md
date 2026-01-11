@@ -60,8 +60,8 @@ docker-compose up -d
 
 4. Access the application:
 - Frontend: http://localhost:4200
-- API: http://localhost:5000
-- Swagger: http://localhost:5000/swagger
+- API: http://localhost:5190
+- Swagger: http://localhost:5190/swagger
 
 ### Manual Setup
 

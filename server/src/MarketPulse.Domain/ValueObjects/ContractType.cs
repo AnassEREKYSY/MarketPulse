@@ -1,3 +1,5 @@
+using MarketPulse.Domain.Enums;
+
 namespace MarketPulse.Domain.ValueObjects;
 
 public class ContractType

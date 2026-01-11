@@ -9,7 +9,9 @@ import { JobStatistics, SalaryStatistics, HeatMapData, TrendData } from '../mode
 })
 export class JobsService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:5000/api/jobs';
+  private apiUrl = (typeof window !== 'undefined' && (window as any).API_URL) 
+    ? `${(window as any).API_URL}/api/jobs`
+    : 'http://localhost:5190/api/jobs';
 
   searchJobs(params: {
     query?: string;

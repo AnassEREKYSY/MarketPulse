@@ -1,37 +1,120 @@
 .stat-card {
-  height: 100%;
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #2196f3 0%, #64b5f6 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    
+    &::before {
+      opacity: 1;
+    }
+  }
+  
+  &.stat-card-primary {
+    &::before {
+      background: linear-gradient(90deg, #2196f3 0%, #64b5f6 100%);
+    }
+  }
+  
+  &.stat-card-accent {
+    &::before {
+      background: linear-gradient(90deg, #9c27b0 0%, #ba68c8 100%);
+    }
+  }
+  
+  &.stat-card-warn {
+    &::before {
+      background: linear-gradient(90deg, #f44336 0%, #ef5350 100%);
+    }
+  }
+  
+  mat-card-content {
+    padding: 0 !important;
+  }
   
   .stat-content {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 20px;
   }
   
   .stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    
     mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
+      font-size: 32px;
+      width: 32px;
+      height: 32px;
+      color: #1976d2;
     }
   }
   
   .stat-info {
     flex: 1;
+    
+    .stat-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #64748b;
+      margin: 0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
+      line-height: 1.2;
+      font-family: 'Inter', sans-serif;
+    }
   }
   
-  .stat-title {
-    font-size: 14px;
-    color: #666;
-    margin: 0 0 8px 0;
-    font-weight: 400;
+  // Accent variant
+  &.stat-card-accent {
+    .stat-icon {
+      background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+      
+      mat-icon {
+        color: #9c27b0;
+      }
+    }
   }
   
-  .stat-value {
-    font-size: 32px;
-    font-weight: 500;
-    margin: 0;
-    color: #333;
+  // Warn variant
+  &.stat-card-warn {
+    .stat-icon {
+      background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+      
+      mat-icon {
+        color: #f44336;
+      }
+    }
   }
 }
-
-

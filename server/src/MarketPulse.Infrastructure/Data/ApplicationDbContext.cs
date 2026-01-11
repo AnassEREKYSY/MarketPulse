@@ -28,6 +28,15 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.Location)
                 .WithMany(l => l.JobOffers)
                 .HasForeignKey(e => e.LocationId);
+            
+            // Configure SalaryRange as an owned entity (value object)
+            entity.OwnsOne(e => e.SalaryRange, salaryRange =>
+            {
+                salaryRange.Property(s => s.MinSalary).HasColumnName("MinSalary");
+                salaryRange.Property(s => s.MaxSalary).HasColumnName("MaxSalary");
+                salaryRange.Property(s => s.Currency).HasColumnName("Currency");
+                salaryRange.Property(s => s.Period).HasColumnName("Period");
+            });
         });
 
         modelBuilder.Entity<Company>(entity =>
