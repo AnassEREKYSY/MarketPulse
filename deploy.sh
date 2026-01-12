@@ -171,10 +171,47 @@ EOF
 # Stop existing containers
 echo -e "${YELLOW}Stopping existing containers...${NC}"
 if command -v docker-compose &> /dev/null; then
-    docker-compose -f docker-compose.prod.yml down || true
+    docker-compose -f docker-compose.prod.yml down --remove-orphans || true
 else
-    docker compose -f docker-compose.prod.yml down || true
+    docker compose -f docker-compose.prod.yml down --remove-orphans || true
 fi
+
+# Wait a bit for ports to be released
+sleep 2
+
+# Kill any processes using our ports (in case containers didn't stop properly)
+echo -e "${YELLOW}Checking for processes using ports 4200 and 5190...${NC}"
+if command -v lsof &> /dev/null; then
+    # Kill process on port 4200
+    PID_4200=$(lsof -ti:4200 2>/dev/null || true)
+    if [ -n "$PID_4200" ]; then
+        echo -e "${YELLOW}Killing process $PID_4200 using port 4200...${NC}"
+        kill -9 $PID_4200 2>/dev/null || true
+    fi
+    
+    # Kill process on port 5190
+    PID_5190=$(lsof -ti:5190 2>/dev/null || true)
+    if [ -n "$PID_5190" ]; then
+        echo -e "${YELLOW}Killing process $PID_5190 using port 5190...${NC}"
+        kill -9 $PID_5190 2>/dev/null || true
+    fi
+elif command -v fuser &> /dev/null; then
+    # Alternative method using fuser
+    fuser -k 4200/tcp 2>/dev/null || true
+    fuser -k 5190/tcp 2>/dev/null || true
+else
+    # Fallback: try to find and kill Docker containers using these ports
+    echo -e "${YELLOW}Checking for Docker containers using ports...${NC}"
+    docker ps -a --filter "publish=4200" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -a --filter "publish=5190" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+fi
+
+# Remove any orphaned containers
+echo -e "${YELLOW}Removing orphaned containers...${NC}"
+docker ps -a --filter "name=marketpulse" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+
+# Wait a bit more for ports to be fully released
+sleep 2
 
 # Remove old images (optional, to save space)
 echo -e "${YELLOW}Cleaning up old images...${NC}"
