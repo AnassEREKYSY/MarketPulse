@@ -30,18 +30,18 @@ jobs:
 
       - name: Deploy to OVH VM
         run: |
-          ssh ${{ secrets.OVH_USER }}@${{ secrets.OVH_HOST }} << 'EOF'
+          ssh ${{ secrets.OVH_USER }}@${{ secrets.OVH_HOST }} << EOF
             set -e
-            cd ~/marketpulse
+            cd ~/marketpulse || mkdir -p ~/marketpulse && cd ~/marketpulse
             
             # Set environment variables
             export GITHUB_OWNER="${{ github.repository_owner }}"
-            export GUSERNAME="${{ secrets.GUSERNAME }}"
+            export GUSERNAME="${{ github.repository_owner }}"
             export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
             
             # Make deploy script executable
             chmod +x deploy.sh
             
-            # Run deployment
-            ./deploy.sh
+            # Run deployment with environment variables
+            GITHUB_OWNER="${{ github.repository_owner }}" GUSERNAME="${{ github.repository_owner }}" GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}" ./deploy.sh
           EOF
