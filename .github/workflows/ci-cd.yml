@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline - Build, Push & Deploy
 
 on:
   push:
@@ -111,12 +111,14 @@ jobs:
         run: |
           ssh-keyscan -H ${{ secrets.OVH_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Copy deployment files to OVH VM
+        run: |
+          scp deploy.sh docker-compose.prod.yml ${{ secrets.OVH_USER }}@${{ secrets.OVH_HOST }}:~/marketpulse/
+
       - name: Deploy to OVH VM
         run: |
           ssh ${{ secrets.OVH_USER }}@${{ secrets.OVH_HOST }} << EOF
             set -e
-            
-            # Navigate to deployment directory
             cd ~/marketpulse || mkdir -p ~/marketpulse && cd ~/marketpulse
             
             # Set environment variables
@@ -124,12 +126,9 @@ jobs:
             export GUSERNAME="${{ github.repository_owner }}"
             export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
             
-            # Run deployment script with environment variables
-            if [ -f deploy.sh ]; then
-              chmod +x deploy.sh
-              GITHUB_OWNER="${{ github.repository_owner }}" GUSERNAME="${{ github.repository_owner }}" GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}" ./deploy.sh
-            else
-              echo "Deployment script not found. Please copy deploy.sh to the server first."
-              exit 1
-            fi
+            # Make deploy script executable
+            chmod +x deploy.sh
+            
+            # Run deployment with environment variables
+            GITHUB_OWNER="${{ github.repository_owner }}" GUSERNAME="${{ github.repository_owner }}" GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}" ./deploy.sh
           EOF
