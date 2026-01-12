@@ -176,13 +176,7 @@ public class AdzunaJobProvider : IJobMarketProvider
                             Id = Guid.NewGuid(),
                             Name = ExtractCompanyName(result)
                         },
-                        Location = new LocationDto
-                        {
-                            Id = Guid.NewGuid(),
-                            City = ExtractCity(result, location),
-                            Country = country.ToUpper(),
-                            CountryCode = country
-                        },
+                        Location = ExtractLocation(result, location, country),
                         EmploymentType = DetermineEmploymentType(result),
                         WorkMode = DetermineWorkMode(result),
                         ExperienceLevel = ExtractExperienceLevel(result),
@@ -226,6 +220,37 @@ public class AdzunaJobProvider : IJobMarketProvider
             }
         }
         return "Unknown";
+    }
+
+    private LocationDto ExtractLocation(JsonElement result, string? fallbackLocation, string country)
+    {
+        var city = ExtractCity(result, fallbackLocation);
+        var locationDto = new LocationDto
+        {
+            Id = Guid.NewGuid(),
+            City = city,
+            Country = country.ToUpper(),
+            CountryCode = country
+        };
+
+        // Try to extract latitude and longitude from Adzuna response
+        if (result.TryGetProperty("location", out var location))
+        {
+            if (location.ValueKind == JsonValueKind.Object)
+            {
+                // Check for latitude/longitude in location object
+                if (location.TryGetProperty("latitude", out var lat) && lat.ValueKind == JsonValueKind.Number)
+                {
+                    locationDto.Latitude = (decimal)lat.GetDouble();
+                }
+                if (location.TryGetProperty("longitude", out var lng) && lng.ValueKind == JsonValueKind.Number)
+                {
+                    locationDto.Longitude = (decimal)lng.GetDouble();
+                }
+            }
+        }
+
+        return locationDto;
     }
 
     private string ExtractCity(JsonElement result, string? fallbackLocation)

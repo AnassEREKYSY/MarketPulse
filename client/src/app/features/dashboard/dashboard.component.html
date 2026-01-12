@@ -42,7 +42,7 @@
         <div class="filters-grid">
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Employment Type</mat-label>
-            <mat-select [(ngModel)]="employmentType">
+            <mat-select [(ngModel)]="employmentType" (selectionChange)="onFilterChange()">
               <mat-option value="">All Types</mat-option>
               <mat-option *ngFor="let type of employmentTypes" [value]="type">{{ type }}</mat-option>
             </mat-select>
@@ -50,7 +50,7 @@
           
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Work Mode</mat-label>
-            <mat-select [(ngModel)]="workMode">
+            <mat-select [(ngModel)]="workMode" (selectionChange)="onFilterChange()">
               <mat-option value="">All Modes</mat-option>
               <mat-option *ngFor="let mode of workModes" [value]="mode">{{ mode }}</mat-option>
             </mat-select>
@@ -58,7 +58,7 @@
           
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Experience Level</mat-label>
-            <mat-select [(ngModel)]="experienceLevel">
+            <mat-select [(ngModel)]="experienceLevel" (selectionChange)="onFilterChange()">
               <mat-option value="">All Levels</mat-option>
               <mat-option *ngFor="let level of experienceLevels" [value]="level">{{ level }}</mat-option>
             </mat-select>
@@ -66,12 +66,12 @@
           
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Min Salary (EUR/year)</mat-label>
-            <input matInput type="number" [(ngModel)]="minSalary" placeholder="e.g., 30000">
+            <input matInput type="number" [(ngModel)]="minSalary" (keyup)="onFilterChange()" (blur)="onFilterChange()" placeholder="e.g., 30000">
           </mat-form-field>
           
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Max Salary (EUR/year)</mat-label>
-            <input matInput type="number" [(ngModel)]="maxSalary" placeholder="e.g., 100000">
+            <input matInput type="number" [(ngModel)]="maxSalary" (keyup)="onFilterChange()" (blur)="onFilterChange()" placeholder="e.g., 100000">
           </mat-form-field>
           
           <button mat-button (click)="clearFilters()" class="clear-button">
@@ -81,19 +81,19 @@
         </div>
       </div>
       
-      <!-- Heat Map -->
-      <div class="heatmap-section">
+      <!-- Heat Map - Only show after search -->
+      <div class="heatmap-section" *ngIf="hasSearched">
         <mat-card class="heatmap-card">
           <mat-card-header>
             <mat-card-title>
               <mat-icon>map</mat-icon>
-              Job Market Heatmap
+              Job Locations Map
             </mat-card-title>
             <mat-form-field appearance="outline" class="map-type-selector">
               <mat-label>Map Type</mat-label>
               <mat-select [(ngModel)]="mapType" (selectionChange)="onMapTypeChange()">
                 <mat-option value="jobs">Job Density</mat-option>
-                <mat-option value="salary">Salary Heatmap</mat-option>
+                <mat-option value="salary">Average Salary</mat-option>
               </mat-select>
             </mat-form-field>
           </mat-card-header>
@@ -102,7 +102,11 @@
               <mat-spinner diameter="40"></mat-spinner>
               <p>Loading map data...</p>
             </div>
-            <div #mapContainer class="map-container" *ngIf="!heatMapLoading"></div>
+            <div #mapContainer id="heatmap-container" class="map-container" [style.display]="heatMapLoading ? 'none' : 'block'"></div>
+            <div *ngIf="!heatMapLoading && searchResults && (!searchResults.jobs || searchResults.jobs.length === 0)" class="map-empty">
+              <mat-icon>map</mat-icon>
+              <p>No job locations available</p>
+            </div>
           </mat-card-content>
         </mat-card>
       </div>
@@ -119,8 +123,8 @@
   </div>
 </div>
 
-<!-- Results Section -->
-<div *ngIf="searchResults" class="results-section">
+<!-- Results Section - Only show after search -->
+<div id="results-section" *ngIf="hasSearched && searchResults" class="results-section">
   <div class="container">
     <!-- Statistics Cards -->
     <div class="stats-section" *ngIf="statistics">
@@ -160,42 +164,42 @@
     <!-- Charts Section -->
     <div class="charts-section" *ngIf="statistics">
       <div class="charts-grid">
-        <!-- Employment Type Pie Chart -->
+        <!-- Employment Type Column Chart -->
         <mat-card *ngIf="getEmploymentTypeChartData()" class="chart-card">
           <mat-card-header>
             <mat-card-title>
-              <mat-icon>pie_chart</mat-icon>
+              <mat-icon>bar_chart</mat-icon>
               Employment Type Distribution
             </mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <app-chart [config]="getEmploymentTypeChartData()"></app-chart>
+            <app-chart [config]="getEmploymentTypeChartData()" [loading]="loading"></app-chart>
           </mat-card-content>
         </mat-card>
         
-        <!-- Work Mode Pie Chart -->
+        <!-- Work Mode Column Chart -->
         <mat-card *ngIf="getWorkModeChartData()" class="chart-card">
           <mat-card-header>
             <mat-card-title>
-              <mat-icon>pie_chart</mat-icon>
+              <mat-icon>bar_chart</mat-icon>
               Work Mode Analysis
             </mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <app-chart [config]="getWorkModeChartData()"></app-chart>
+            <app-chart [config]="getWorkModeChartData()" [loading]="loading"></app-chart>
           </mat-card-content>
         </mat-card>
         
-        <!-- Experience Level Pie Chart -->
+        <!-- Experience Level Column Chart -->
         <mat-card *ngIf="getExperienceLevelChartData()" class="chart-card">
           <mat-card-header>
             <mat-card-title>
-              <mat-icon>pie_chart</mat-icon>
+              <mat-icon>bar_chart</mat-icon>
               Experience Level Distribution
             </mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <app-chart [config]="getExperienceLevelChartData()"></app-chart>
+            <app-chart [config]="getExperienceLevelChartData()" [loading]="loading"></app-chart>
           </mat-card-content>
         </mat-card>
         
@@ -208,13 +212,13 @@
             </mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <app-chart [config]="getSalaryChartData()"></app-chart>
+            <app-chart [config]="getSalaryChartData()" [loading]="loading"></app-chart>
           </mat-card-content>
         </mat-card>
       </div>
     </div>
     
-    <!-- Companies List -->
+    <!-- Companies Grid -->
     <div class="companies-section" *ngIf="uniqueCompanies.length > 0">
       <mat-card class="section-card">
         <mat-card-header>
@@ -224,38 +228,52 @@
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <div class="companies-list">
-            <div *ngFor="let company of uniqueCompanies" class="company-item">
-              <div class="company-info">
-                <mat-icon class="company-icon">business</mat-icon>
-                <div class="company-details">
-                  <h4>{{ company.name }}</h4>
-                  <p *ngIf="company.industry">{{ company.industry }}</p>
+          <div class="companies-grid">
+            <mat-card *ngFor="let company of displayedCompanies" class="company-card">
+              <mat-card-header>
+                <div class="company-header">
+                  <mat-icon class="company-icon">business</mat-icon>
+                  <mat-card-title>{{ company.name }}</mat-card-title>
                 </div>
-              </div>
-              <div class="company-stats">
-                <span class="job-count">
-                  {{ getCompanyJobCount(company.id) }} jobs
-                </span>
-              </div>
-            </div>
+              </mat-card-header>
+              <mat-card-content>
+                <div class="company-info">
+                  <p class="company-industry" *ngIf="company.industry">
+                    <mat-icon>domain</mat-icon>
+                    {{ company.industry }}
+                  </p>
+                  <div class="company-job-count">
+                    <mat-icon>work</mat-icon>
+                    <span>{{ getCompanyJobCount(company.id) }} job{{ getCompanyJobCount(company.id) !== 1 ? 's' : '' }}</span>
+                  </div>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+          
+          <!-- Show More Button -->
+          <div class="show-more-container" *ngIf="hasMoreCompanies() && !showAllCompanies">
+            <button mat-raised-button color="primary" (click)="showMoreCompanies()" class="show-more-button">
+              <mat-icon>expand_more</mat-icon>
+              Show More Companies ({{ uniqueCompanies.length - companiesToShow }} remaining)
+            </button>
           </div>
         </mat-card-content>
       </mat-card>
     </div>
     
-    <!-- Jobs List -->
-    <div class="jobs-section" *ngIf="searchResults.jobs && searchResults.jobs.length > 0">
+    <!-- Jobs List with Pagination -->
+    <div class="jobs-section" *ngIf="displayedJobs && displayedJobs.length > 0">
       <mat-card class="section-card">
         <mat-card-header>
           <mat-card-title>
             <mat-icon>work</mat-icon>
-            Job Listings ({{ searchResults.jobs.length }})
+            Job Listings ({{ totalJobsCount }})
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="jobs-list">
-            <mat-card *ngFor="let job of searchResults.jobs" class="job-card">
+            <mat-card *ngFor="let job of displayedJobs" class="job-card">
               <mat-card-header>
                 <mat-card-title>{{ job.title }}</mat-card-title>
                 <mat-card-subtitle>
@@ -295,6 +313,17 @@
               </mat-card-actions>
             </mat-card>
           </div>
+          
+          <!-- Pagination -->
+          <mat-paginator
+            [length]="totalJobsCount"
+            [pageSize]="pageSize"
+            [pageIndex]="pageIndex"
+            [pageSizeOptions]="[10, 20, 50, 100]"
+            (page)="onPageChange($event)"
+            showFirstLastButtons
+            aria-label="Select page of job results">
+          </mat-paginator>
         </mat-card-content>
       </mat-card>
     </div>
