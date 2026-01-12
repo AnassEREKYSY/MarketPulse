@@ -38,7 +38,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Extract metadata (tags, labels) for API
@@ -113,22 +113,23 @@ jobs:
 
       - name: Deploy to OVH VM
         run: |
-          ssh ${{ secrets.OVH_USER }}@${{ secrets.OVH_HOST }} << 'EOF'
+          ssh ${{ secrets.OVH_USER }}@${{ secrets.OVH_HOST }} << EOF
             set -e
             
             # Navigate to deployment directory
             cd ~/marketpulse || mkdir -p ~/marketpulse && cd ~/marketpulse
             
-            # Pull latest deployment script if it exists
-            if [ -f deploy.sh ]; then
-              git pull || true
-            fi
+            # Set environment variables
+            export GITHUB_OWNER="${{ github.repository_owner }}"
+            export GUSERNAME="${{ github.repository_owner }}"
+            export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
             
-            # Run deployment script
+            # Run deployment script with environment variables
             if [ -f deploy.sh ]; then
               chmod +x deploy.sh
-              ./deploy.sh
+              GITHUB_OWNER="${{ github.repository_owner }}" GUSERNAME="${{ github.repository_owner }}" GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}" ./deploy.sh
             else
-              echo "Deployment script not found. Please create deploy.sh on the server."
+              echo "Deployment script not found. Please copy deploy.sh to the server first."
+              exit 1
             fi
           EOF

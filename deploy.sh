@@ -17,9 +17,10 @@ CLIENT_IMAGE="${REGISTRY}/${GITHUB_OWNER}/marketpulse-client:latest"
 DEPLOY_DIR="${DEPLOY_DIR:-$HOME/marketpulse}"
 
 # Validate configuration
-if [ "$GITHUB_OWNER" == "your-username" ]; then
+if [ -z "$GITHUB_OWNER" ] || [ "$GITHUB_OWNER" == "your-username" ]; then
     echo -e "${RED}Error: GITHUB_OWNER is not set. Please set it as an environment variable.${NC}"
     echo -e "${YELLOW}Example: export GITHUB_OWNER=your-github-username${NC}"
+    echo -e "${YELLOW}Current value: GITHUB_OWNER=${GITHUB_OWNER}${NC}"
     exit 1
 fi
 
@@ -45,11 +46,15 @@ cd "$DEPLOY_DIR" || {
 }
 
 # Login to GHCR (if not already logged in)
-echo -e "${YELLOW}Logging in to GitHub Container Registry...${NC}"
-echo "$GHCR_TOKEN" | docker login "$REGISTRY" -u "$GUSERNAME" --password-stdin || {
-    echo -e "${YELLOW}Warning: Could not login to GHCR. Make sure GHCR_TOKEN and GUSERNAME are set.${NC}"
-    echo -e "${YELLOW}Continuing with public images...${NC}"
-}
+if [ -n "$GHCR_TOKEN" ] && [ -n "$GUSERNAME" ]; then
+    echo -e "${YELLOW}Logging in to GitHub Container Registry...${NC}"
+    echo "$GHCR_TOKEN" | docker login "$REGISTRY" -u "$GUSERNAME" --password-stdin || {
+        echo -e "${YELLOW}Warning: Could not login to GHCR. Make sure GHCR_TOKEN and GUSERNAME are set.${NC}"
+        echo -e "${YELLOW}Continuing with public images...${NC}"
+    }
+else
+    echo -e "${YELLOW}Warning: GHCR_TOKEN or GUSERNAME not set. Attempting to pull public images...${NC}"
+fi
 
 # Pull latest images
 echo -e "${GREEN}Pulling latest images...${NC}"
