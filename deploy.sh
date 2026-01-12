@@ -132,6 +132,12 @@ services:
         condition: service_healthy
     networks:
       - marketpulse-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/jobs/statistics || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   client:
     image: ghcr.io/${GITHUB_OWNER_LOWER}/marketpulse-client:latest
@@ -140,7 +146,8 @@ services:
     ports:
       - "4200:80"
     depends_on:
-      - api
+      api:
+        condition: service_started
     environment:
       - API_URL=http://localhost:5190
     networks:
@@ -163,7 +170,11 @@ EOF
 
 # Stop existing containers
 echo -e "${YELLOW}Stopping existing containers...${NC}"
-docker-compose -f docker-compose.prod.yml down || docker compose -f docker-compose.prod.yml down || true
+if command -v docker-compose &> /dev/null; then
+    docker-compose -f docker-compose.prod.yml down || true
+else
+    docker compose -f docker-compose.prod.yml down || true
+fi
 
 # Remove old images (optional, to save space)
 echo -e "${YELLOW}Cleaning up old images...${NC}"
@@ -177,9 +188,16 @@ else
     docker compose -f docker-compose.prod.yml up -d
 fi
 
-# Wait for services to be healthy
-echo -e "${YELLOW}Waiting for services to be healthy...${NC}"
-sleep 10
+# Wait for services to start
+echo -e "${YELLOW}Waiting for services to start...${NC}"
+sleep 15
+
+# Check API logs if it's not healthy
+echo -e "${YELLOW}Checking API container logs...${NC}"
+if docker logs marketpulse-api --tail 50 2>&1 | grep -i "error\|exception\|fail" > /dev/null; then
+    echo -e "${RED}API container has errors. Showing last 50 lines:${NC}"
+    docker logs marketpulse-api --tail 50
+fi
 
 # Check container status
 echo -e "${GREEN}Container status:${NC}"
@@ -196,10 +214,15 @@ else
 fi
 
 # Check API
-if curl -f http://localhost:5190/health > /dev/null 2>&1 || curl -f http://localhost:5190/api/jobs/statistics > /dev/null 2>&1; then
+echo -e "${YELLOW}Checking API health...${NC}"
+if curl -f http://localhost:5190/api/jobs/statistics > /dev/null 2>&1; then
     echo -e "${GREEN}✓ API is healthy${NC}"
 else
-    echo -e "${YELLOW}⚠ API health check failed (might still be starting)${NC}"
+    echo -e "${YELLOW}⚠ API health check failed${NC}"
+    echo -e "${YELLOW}Checking API container status...${NC}"
+    docker ps -a --filter "name=marketpulse-api" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+    echo -e "${YELLOW}API logs (last 30 lines):${NC}"
+    docker logs marketpulse-api --tail 30 || true
 fi
 
 # Check Client
