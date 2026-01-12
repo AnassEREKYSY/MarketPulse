@@ -40,6 +40,103 @@ if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/
     exit 1
 fi
 
+# Function to get all ports in use by Docker containers
+get_used_ports() {
+    # Get all ports from running Docker containers
+    # Handles formats like: 0.0.0.0:PORT->..., :::PORT->..., PORT/tcp
+    docker ps --format "{{.Ports}}" 2>/dev/null | \
+        grep -oE '(0\.0\.0\.0|:::)?:?[0-9]+->' | \
+        sed 's/.*:\([0-9]*\)->.*/\1/' | \
+        grep -v '^$' | \
+        sort -u || echo ""
+}
+
+# Function to check if a port is available
+check_port_available() {
+    local port=$1
+    
+    # Get all ports currently in use by Docker
+    local used_ports=$(get_used_ports)
+    
+    # Check if port is in use by Docker containers
+    if echo "$used_ports" | grep -q "^${port}$"; then
+        return 1  # Port is in use
+    fi
+    
+    # Also check Docker port format (0.0.0.0:PORT->...)
+    if docker ps --format "{{.Ports}}" 2>/dev/null | grep -qE "0\.0\.0\.0:${port}->|:::${port}->"; then
+        return 1  # Port is in use
+    fi
+    
+    # Check if port is in use by system processes
+    if command -v ss &> /dev/null; then
+        if ss -lntu 2>/dev/null | grep -qE ":${port} "; then
+            return 1  # Port is in use
+        fi
+    elif command -v netstat &> /dev/null; then
+        if netstat -lntu 2>/dev/null | grep -qE ":${port} "; then
+            return 1  # Port is in use
+        fi
+    fi
+    
+    return 0  # Port is available
+}
+
+# Function to find an available port starting from a base port
+find_available_port() {
+    local base_port=$1
+    local port=$base_port
+    local max_attempts=10
+    local attempt=0
+    
+    while [ $attempt -lt $max_attempts ]; do
+        if check_port_available $port; then
+            echo $port
+            return 0
+        fi
+        port=$((port + 1))
+        attempt=$((attempt + 1))
+    done
+    
+    echo $base_port  # Fallback to base port if none found
+    return 1
+}
+
+# Check and assign ports
+echo -e "${YELLOW}Checking port availability...${NC}"
+
+# Get list of currently used ports
+USED_PORTS=$(get_used_ports)
+echo -e "${YELLOW}Currently used ports: ${USED_PORTS}${NC}"
+
+CLIENT_PORT=4200
+API_PORT=5190
+
+# Check client port (4200 is used by skinet-client)
+if ! check_port_available $CLIENT_PORT; then
+    echo -e "${YELLOW}Port $CLIENT_PORT is in use, finding alternative...${NC}"
+    # Start from 4201 and skip known used ports
+    CLIENT_PORT=$(find_available_port 4201)
+    echo -e "${GREEN}Using port $CLIENT_PORT for client${NC}"
+else
+    echo -e "${GREEN}Port $CLIENT_PORT is available for client${NC}"
+fi
+
+# Check API port (5190 might be used by existing marketpulse-api)
+if ! check_port_available $API_PORT; then
+    echo -e "${YELLOW}Port $API_PORT is in use, finding alternative...${NC}"
+    # Start from 5191 and skip known used ports
+    API_PORT=$(find_available_port 5191)
+    echo -e "${GREEN}Using port $API_PORT for API${NC}"
+else
+    echo -e "${GREEN}Port $API_PORT is available for API${NC}"
+fi
+
+export CLIENT_PORT
+export API_PORT
+
+echo -e "${GREEN}Selected ports - Client: $CLIENT_PORT, API: $API_PORT${NC}"
+
 # Navigate to deployment directory
 cd "$DEPLOY_DIR" || {
     echo -e "${YELLOW}Creating deployment directory: $DEPLOY_DIR${NC}"
@@ -120,7 +217,7 @@ services:
     container_name: marketpulse-api
     restart: unless-stopped
     ports:
-      - "5190:8080"
+      - "${API_PORT}:8080"
     env_file:
       - .env
     environment:
@@ -144,12 +241,12 @@ services:
     container_name: marketpulse-client
     restart: unless-stopped
     ports:
-      - "4200:80"
+      - "${CLIENT_PORT}:80"
     depends_on:
       api:
         condition: service_started
     environment:
-      - API_URL=http://localhost:5190
+      - API_URL=http://localhost:${API_PORT}
     networks:
       - marketpulse-network
 
@@ -162,10 +259,15 @@ networks:
     driver: bridge
 EOF
     else
-        # Update existing docker-compose.prod.yml with lowercase owner
-        echo -e "${YELLOW}Updating docker-compose.prod.yml with lowercase image names...${NC}"
+        # Update existing docker-compose.prod.yml with lowercase owner and dynamic ports
+        echo -e "${YELLOW}Updating docker-compose.prod.yml with lowercase image names and ports...${NC}"
         sed -i "s|ghcr.io/\${GITHUB_OWNER}/|ghcr.io/${GITHUB_OWNER_LOWER}/|g" docker-compose.prod.yml
         sed -i "s|ghcr.io/\${GITHUB_OWNER_LOWER}/|ghcr.io/${GITHUB_OWNER_LOWER}/|g" docker-compose.prod.yml
+        # Update ports
+        sed -i "s|\"4200:80\"|\"${CLIENT_PORT}:80\"|g" docker-compose.prod.yml
+        sed -i "s|\"5190:8080\"|\"${API_PORT}:8080\"|g" docker-compose.prod.yml
+        sed -i "s|API_URL=http://localhost:5190|API_URL=http://localhost:${API_PORT}|g" docker-compose.prod.yml
+        sed -i "s|API_URL=http://\${OVH_HOST:-localhost}:5190|API_URL=http://\${OVH_HOST:-localhost}:${API_PORT}|g" docker-compose.prod.yml
     fi
 
 # Stop existing containers
@@ -176,41 +278,16 @@ else
     docker compose -f docker-compose.prod.yml down --remove-orphans || true
 fi
 
-# Wait a bit for ports to be released
-sleep 2
-
-# Kill any processes using our ports (in case containers didn't stop properly)
-echo -e "${YELLOW}Checking for processes using ports 4200 and 5190...${NC}"
-if command -v lsof &> /dev/null; then
-    # Kill process on port 4200
-    PID_4200=$(lsof -ti:4200 2>/dev/null || true)
-    if [ -n "$PID_4200" ]; then
-        echo -e "${YELLOW}Killing process $PID_4200 using port 4200...${NC}"
-        kill -9 $PID_4200 2>/dev/null || true
+# Remove any containers with marketpulse in the name
+echo -e "${YELLOW}Removing any remaining marketpulse containers...${NC}"
+docker ps -a --filter "name=marketpulse" --format "{{.ID}}" 2>/dev/null | while read -r container_id; do
+    if [ -n "$container_id" ]; then
+        docker stop "$container_id" 2>/dev/null || true
+        docker rm -f "$container_id" 2>/dev/null || true
     fi
-    
-    # Kill process on port 5190
-    PID_5190=$(lsof -ti:5190 2>/dev/null || true)
-    if [ -n "$PID_5190" ]; then
-        echo -e "${YELLOW}Killing process $PID_5190 using port 5190...${NC}"
-        kill -9 $PID_5190 2>/dev/null || true
-    fi
-elif command -v fuser &> /dev/null; then
-    # Alternative method using fuser
-    fuser -k 4200/tcp 2>/dev/null || true
-    fuser -k 5190/tcp 2>/dev/null || true
-else
-    # Fallback: try to find and kill Docker containers using these ports
-    echo -e "${YELLOW}Checking for Docker containers using ports...${NC}"
-    docker ps -a --filter "publish=4200" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
-    docker ps -a --filter "publish=5190" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
-fi
+done
 
-# Remove any orphaned containers
-echo -e "${YELLOW}Removing orphaned containers...${NC}"
-docker ps -a --filter "name=marketpulse" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
-
-# Wait a bit more for ports to be fully released
+# Wait a moment for cleanup to complete
 sleep 2
 
 # Remove old images (optional, to save space)
