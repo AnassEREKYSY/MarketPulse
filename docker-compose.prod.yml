@@ -22,7 +22,7 @@ services:
     container_name: marketpulse-api
     restart: unless-stopped
     ports:
-      - "5190:8080"
+      - "${API_PORT:-5190}:8080"
     env_file:
       - .env
     environment:
@@ -46,12 +46,12 @@ services:
     container_name: marketpulse-client
     restart: unless-stopped
     ports:
-      - "4200:80"
+      - "${CLIENT_PORT:-4200}:80"
     depends_on:
       api:
         condition: service_started
     environment:
-      - API_URL=http://${OVH_HOST:-localhost}:5190
+      - API_URL=http://${OVH_HOST:-localhost}:${API_PORT:-5190}
     networks:
       - marketpulse-network
 
