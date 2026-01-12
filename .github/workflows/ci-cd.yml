@@ -14,6 +14,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  # Convert repository owner to lowercase for Docker image names (Docker requires lowercase)
+  REPO_OWNER_LOWER: ${{ github.repository_owner }}
   IMAGE_PREFIX: ${{ github.repository_owner }}/marketpulse
 
 jobs:
@@ -41,12 +43,17 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_TOKEN }}
 
+      - name: Convert repository owner to lowercase
+        id: repo-owner-lower
+        run: |
+          echo "owner_lower=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Extract metadata (tags, labels) for API
         if: matrix.service == 'api'
         id: meta-api
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-api
+          images: ${{ env.REGISTRY }}/${{ steps.repo-owner-lower.outputs.owner_lower }}/marketpulse-api
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -60,7 +67,7 @@ jobs:
         id: meta-client
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-client
+          images: ${{ env.REGISTRY }}/${{ steps.repo-owner-lower.outputs.owner_lower }}/marketpulse-client
           tags: |
             type=ref,event=branch
             type=ref,event=pr

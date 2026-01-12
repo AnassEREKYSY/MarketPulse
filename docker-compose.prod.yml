@@ -18,7 +18,7 @@ services:
       - marketpulse-network
 
   api:
-    image: ghcr.io/${GITHUB_OWNER}/marketpulse-api:latest
+    image: ghcr.io/${GITHUB_OWNER_LOWER}/marketpulse-api:latest
     container_name: marketpulse-api
     restart: unless-stopped
     ports:
@@ -42,7 +42,7 @@ services:
       start_period: 40s
 
   client:
-    image: ghcr.io/${GITHUB_OWNER}/marketpulse-client:latest
+    image: ghcr.io/${GITHUB_OWNER_LOWER}/marketpulse-client:latest
     container_name: marketpulse-client
     restart: unless-stopped
     ports:

@@ -10,10 +10,12 @@ NC='\033[0m' # No Color
 
 # Configuration
 GITHUB_OWNER="${GITHUB_OWNER:-your-username}"
+# Convert to lowercase for Docker image names (Docker requires lowercase)
+GITHUB_OWNER_LOWER=$(echo "$GITHUB_OWNER" | tr '[:upper:]' '[:lower:]')
 GUSERNAME="${GUSERNAME:-${GITHUB_OWNER}}"
 REGISTRY="ghcr.io"
-API_IMAGE="${REGISTRY}/${GITHUB_OWNER}/marketpulse-api:latest"
-CLIENT_IMAGE="${REGISTRY}/${GITHUB_OWNER}/marketpulse-client:latest"
+API_IMAGE="${REGISTRY}/${GITHUB_OWNER_LOWER}/marketpulse-api:latest"
+CLIENT_IMAGE="${REGISTRY}/${GITHUB_OWNER_LOWER}/marketpulse-client:latest"
 DEPLOY_DIR="${DEPLOY_DIR:-$HOME/marketpulse}"
 
 # Validate configuration
@@ -90,10 +92,10 @@ EOF
     echo -e "${YELLOW}Please edit .env file with your actual configuration${NC}"
 fi
 
-# Create docker-compose.prod.yml if it doesn't exist
-if [ ! -f docker-compose.prod.yml ]; then
-    echo -e "${YELLOW}Creating docker-compose.prod.yml...${NC}"
-    cat > docker-compose.prod.yml << 'EOF'
+    # Create docker-compose.prod.yml if it doesn't exist
+    if [ ! -f docker-compose.prod.yml ]; then
+        echo -e "${YELLOW}Creating docker-compose.prod.yml...${NC}"
+        cat > docker-compose.prod.yml << EOF
 version: '3.8'
 
 services:
@@ -114,7 +116,7 @@ services:
       - marketpulse-network
 
   api:
-    image: ghcr.io/${GITHUB_OWNER}/marketpulse-api:latest
+    image: ghcr.io/${GITHUB_OWNER_LOWER}/marketpulse-api:latest
     container_name: marketpulse-api
     restart: unless-stopped
     ports:
@@ -132,7 +134,7 @@ services:
       - marketpulse-network
 
   client:
-    image: ghcr.io/${GITHUB_OWNER}/marketpulse-client:latest
+    image: ghcr.io/${GITHUB_OWNER_LOWER}/marketpulse-client:latest
     container_name: marketpulse-client
     restart: unless-stopped
     ports:
@@ -152,7 +154,12 @@ networks:
   marketpulse-network:
     driver: bridge
 EOF
-fi
+    else
+        # Update existing docker-compose.prod.yml with lowercase owner
+        echo -e "${YELLOW}Updating docker-compose.prod.yml with lowercase image names...${NC}"
+        sed -i "s|ghcr.io/\${GITHUB_OWNER}/|ghcr.io/${GITHUB_OWNER_LOWER}/|g" docker-compose.prod.yml
+        sed -i "s|ghcr.io/\${GITHUB_OWNER_LOWER}/|ghcr.io/${GITHUB_OWNER_LOWER}/|g" docker-compose.prod.yml
+    fi
 
 # Stop existing containers
 echo -e "${YELLOW}Stopping existing containers...${NC}"
