@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: marketpulse-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - marketpulse-network
+
+  api:
+    image: ghcr.io/${GITHUB_OWNER}/marketpulse-api:latest
+    container_name: marketpulse-api
+    restart: unless-stopped
+    ports:
+      - "5190:8080"
+    env_file:
+      - .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - marketpulse-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  client:
+    image: ghcr.io/${GITHUB_OWNER}/marketpulse-client:latest
+    container_name: marketpulse-client
+    restart: unless-stopped
+    ports:
+      - "4200:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      - API_URL=http://${OVH_HOST:-localhost}:5190
+    networks:
+      - marketpulse-network
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  marketpulse-network:
+    driver: bridge
