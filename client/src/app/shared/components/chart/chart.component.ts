@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NgxEchartsDirective } from 'ngx-echarts';
 
@@ -10,8 +10,8 @@ import { NgxEchartsDirective } from 'ngx-echarts';
   styles: [`
     .chart-container {
       width: 100%;
-      height: 400px;
-      min-height: 400px;
+      height: 450px;
+      min-height: 450px;
     }
   `]
 })
@@ -21,13 +21,17 @@ export class ChartComponent implements OnInit, OnChanges {
   
   chartOptions: any = {};
 
+  constructor(private cdr: ChangeDetectorRef) {}
+
   ngOnInit() {
     this.updateChart();
   }
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['config']) {
+      // Force update when config changes
       this.updateChart();
+      this.cdr.detectChanges();
     }
   }
 
@@ -39,42 +43,99 @@ export class ChartComponent implements OnInit, OnChanges {
 
     if (this.config.type === 'pie') {
       this.chartOptions = {
+        backgroundColor: 'transparent',
         tooltip: {
           trigger: 'item',
-          formatter: '{a} <br/>{b}: {c} ({d}%)'
+          backgroundColor: 'rgba(50, 50, 50, 0.95)',
+          borderColor: '#667eea',
+          borderWidth: 1,
+          textStyle: {
+            color: '#fff',
+            fontSize: 13
+          },
+          formatter: (params: any) => {
+            return `<div style="padding: 6px;">
+              <strong style="font-size: 14px;">${params.name}</strong><br/>
+              Count: <strong style="color: #667eea;">${params.value}</strong><br/>
+              Percentage: <strong style="color: #10b981;">${params.percent}%</strong>
+            </div>`;
+          }
         },
         legend: {
           orient: 'vertical',
-          left: 'left'
+          left: '5%',
+          top: 'center',
+          textStyle: {
+            color: '#475569',
+            fontSize: 12,
+            fontWeight: 500
+          },
+          itemGap: 10,
+          itemWidth: 12,
+          itemHeight: 12,
+          formatter: (name: string) => {
+            const item = this.chartOptions.series[0].data.find((d: any) => d.name === name);
+            return item ? `${name} (${item.value})` : name;
+          }
         },
         series: [{
           name: this.config.options?.plugins?.title?.text || 'Data',
           type: 'pie',
           radius: ['40%', '70%'],
+          center: ['65%', '50%'],
           avoidLabelOverlap: true,
+          minAngle: 5, // Minimum angle to show (prevents tiny slices)
           itemStyle: {
             borderRadius: 8,
             borderColor: '#fff',
-            borderWidth: 2
+            borderWidth: 2,
+            shadowBlur: 8,
+            shadowColor: 'rgba(0, 0, 0, 0.1)'
           },
           label: {
             show: true,
-            formatter: '{b}: {c} ({d}%)',
-            fontSize: 12,
-            fontWeight: 500
+            formatter: '{b}: {d}%',
+            fontSize: 11,
+            fontWeight: 500,
+            color: '#1e293b',
+            position: 'outside',
+            distanceToLabelLine: 5
+          },
+          labelLine: {
+            show: true,
+            length: 12,
+            length2: 8,
+            lineStyle: {
+              width: 1.5,
+              color: '#94a3b8'
+            },
+            smooth: 0.2
           },
           emphasis: {
             label: {
               show: true,
-              fontSize: 14,
-              fontWeight: 600
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#1e293b'
             },
             itemStyle: {
               shadowBlur: 20,
               shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.3)'
+              shadowOffsetY: 4,
+              shadowColor: 'rgba(102, 126, 234, 0.3)',
+              borderWidth: 3
+            },
+            labelLine: {
+              lineStyle: {
+                width: 2,
+                color: '#667eea'
+              }
             }
           },
+          animationType: 'scale',
+          animationEasing: 'cubicOut',
+          animationDuration: 600,
+          animationDelay: (idx: number) => idx * 50,
           data: this.config.data.labels.map((label: string, index: number) => {
             const bgColors = this.config.data.datasets[0].backgroundColor;
             const color = Array.isArray(bgColors) 
@@ -83,7 +144,11 @@ export class ChartComponent implements OnInit, OnChanges {
             return {
               value: this.config.data.datasets[0].data[index],
               name: label,
-              itemStyle: { color }
+              itemStyle: { 
+                color,
+                shadowBlur: 6,
+                shadowColor: 'rgba(0, 0, 0, 0.1)'
+              }
             };
           })
         }]
@@ -91,97 +156,194 @@ export class ChartComponent implements OnInit, OnChanges {
     } else if (this.config.type === 'bar') {
       const yAxisConfig: any = {
         type: 'value',
+        name: 'Salary (EUR)',
+        nameLocation: 'middle',
+        nameGap: 50,
+        nameTextStyle: {
+          color: '#64748b',
+          fontSize: 12,
+          fontWeight: 600
+        },
         axisLabel: {
+          color: '#64748b',
+          fontSize: 11,
           formatter: (value: any) => {
-            // Format large numbers with locale string
             if (value >= 1000) {
               return (value / 1000).toFixed(1) + 'k €';
             }
             return value.toLocaleString() + ' €';
           }
+        },
+        axisLine: {
+          lineStyle: {
+            color: '#e2e8f0'
+          }
+        },
+        splitLine: {
+          lineStyle: {
+            color: '#f1f5f9',
+            type: 'dashed'
+          }
         }
       };
       
       this.chartOptions = {
+        backgroundColor: 'transparent',
         tooltip: {
           trigger: 'axis',
           axisPointer: {
-            type: 'shadow'
+            type: 'shadow',
+            shadowStyle: {
+              color: 'rgba(102, 126, 234, 0.1)'
+            }
+          },
+          backgroundColor: 'rgba(50, 50, 50, 0.95)',
+          borderColor: '#667eea',
+          borderWidth: 1,
+          textStyle: {
+            color: '#fff',
+            fontSize: 13
           },
           formatter: (params: any) => {
             if (Array.isArray(params)) {
-              return params.map((p: any) => `${p.seriesName}<br/>${p.name}: ${p.value.toLocaleString()} €`).join('<br/>');
+              return params.map((p: any) => 
+                `<div style="padding: 2px 0;">
+                  <strong>${p.name}</strong><br/>
+                  ${p.seriesName}: <strong style="color: #667eea;">${p.value.toLocaleString()} €</strong>
+                </div>`
+              ).join('');
             }
-            return `${params.seriesName}<br/>${params.name}: ${params.value.toLocaleString()} €`;
+            return `<div style="padding: 4px;">
+              <strong>${params.name}</strong><br/>
+              ${params.seriesName}: <strong style="color: #667eea;">${params.value.toLocaleString()} €</strong>
+            </div>`;
           }
         },
         grid: {
-          left: '3%',
-          right: '4%',
-          bottom: '3%',
+          left: '12%',
+          right: '5%',
+          bottom: '12%',
+          top: '10%',
           containLabel: true
         },
         xAxis: {
           type: 'category',
           data: this.config.data.labels,
+          axisLabel: {
+            color: '#64748b',
+            fontSize: 11,
+            fontWeight: 500,
+            rotate: 0,
+            interval: 0
+          },
+          axisLine: {
+            lineStyle: {
+              color: '#e2e8f0'
+            }
+          },
           axisTick: {
-            alignWithLabel: true
+            alignWithLabel: true,
+            lineStyle: {
+              color: '#e2e8f0'
+            }
           }
         },
         yAxis: yAxisConfig,
         series: [{
           name: this.config.data.datasets[0].label || 'Value',
           type: 'bar',
-          barWidth: '60%',
+          barWidth: '50%',
+          barGap: '15%',
+          itemStyle: {
+            borderRadius: [6, 6, 0, 0],
+            shadowBlur: 6,
+            shadowColor: 'rgba(0, 0, 0, 0.1)',
+            shadowOffsetY: 2
+          },
           data: this.config.data.datasets[0].data.map((value: number, index: number) => {
             const bgColor = this.config.data.datasets[0].backgroundColor;
             const color = Array.isArray(bgColor) 
-              ? (bgColor[index] || '#1976d2')
-              : (typeof bgColor === 'string' ? bgColor : '#1976d2');
+              ? (bgColor[index] || '#667eea')
+              : (typeof bgColor === 'string' ? bgColor : '#667eea');
             return {
               value: value,
-              itemStyle: { color }
+              itemStyle: { 
+                color,
+                borderColor: '#fff',
+                borderWidth: 1.5
+              }
             };
           }),
           label: {
             show: true,
             position: 'top',
             fontSize: 11,
-            fontWeight: 500
+            fontWeight: 600,
+            color: '#475569',
+            formatter: (params: any) => {
+              if (params.value >= 1000) {
+                return (params.value / 1000).toFixed(1) + 'k €';
+              }
+              return params.value.toLocaleString() + ' €';
+            }
           },
           emphasis: {
             itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetY: 5,
-              shadowColor: 'rgba(0, 0, 0, 0.2)'
-            }
-          }
+              shadowBlur: 12,
+              shadowOffsetY: 4,
+              shadowColor: 'rgba(102, 126, 234, 0.3)',
+              borderWidth: 2
+            },
+            focus: 'series'
+          },
+          animationDelay: (idx: number) => idx * 40,
+          animationEasing: 'cubicOut',
+          animationDuration: 500
         }]
       };
     } else if (this.config.type === 'line') {
       this.chartOptions = {
+        backgroundColor: 'transparent',
         tooltip: {
-          trigger: 'axis'
+          trigger: 'axis',
+          backgroundColor: 'rgba(50, 50, 50, 0.95)',
+          borderColor: '#667eea',
+          borderWidth: 1
         },
         grid: {
-          left: '3%',
-          right: '4%',
-          bottom: '3%',
+          left: '10%',
+          right: '5%',
+          bottom: '10%',
+          top: '10%',
           containLabel: true
         },
         xAxis: {
           type: 'category',
           boundaryGap: false,
-          data: this.config.data.labels
+          data: this.config.data.labels,
+          axisLabel: {
+            color: '#64748b',
+            fontSize: 12
+          }
         },
         yAxis: {
-          type: 'value'
+          type: 'value',
+          axisLabel: {
+            color: '#64748b',
+            fontSize: 12
+          }
         },
         series: this.config.data.datasets.map((dataset: any) => ({
           name: dataset.label,
           type: 'line',
           data: dataset.data,
-          smooth: true
+          smooth: true,
+          lineStyle: {
+            width: 3
+          },
+          itemStyle: {
+            borderWidth: 2
+          }
         }))
       };
     }
@@ -189,8 +351,8 @@ export class ChartComponent implements OnInit, OnChanges {
 
   private getColor(index: number): string {
     const colors = [
-      '#2196f3', '#9c27b0', '#00bcd4', '#4caf50', '#ff9800',
-      '#f44336', '#795548', '#607d8b', '#e91e63', '#009688'
+      '#667eea', '#764ba2', '#f093fb', '#4facfe', '#00f2fe',
+      '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#330867'
     ];
     return colors[index % colors.length];
   }
