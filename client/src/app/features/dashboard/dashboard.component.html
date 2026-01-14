@@ -13,32 +13,34 @@
     <!-- Search Bar - Center -->
     <div class="search-section">
       <div class="search-container">
-        <div class="search-box">
-          <mat-icon class="search-icon">search</mat-icon>
-          <input 
-            matInput 
-            type="text" 
-            placeholder="Search jobs (e.g., Software Engineer, Data Analyst...)" 
-            [(ngModel)]="searchQuery"
-            (keyup.enter)="onSearch()"
-            class="search-input">
-          <input 
-            matInput 
-            type="text" 
-            placeholder="Location (e.g., Paris, France)" 
-            [(ngModel)]="searchLocation"
-            (keyup.enter)="onSearch()"
-            class="search-location">
-          <button mat-raised-button color="primary" (click)="onSearch()" [disabled]="searchLoading" class="search-button">
-            <mat-icon *ngIf="!searchLoading">search</mat-icon>
-            <mat-spinner *ngIf="searchLoading" diameter="20"></mat-spinner>
-            Search
-          </button>
-        </div>
+        <form [formGroup]="filtersForm" (ngSubmit)="onSearch()">
+          <div class="search-box">
+            <mat-icon class="search-icon">search</mat-icon>
+            <input 
+              matInput 
+              type="text" 
+              placeholder="Search jobs (e.g., Software Engineer, Data Analyst...)" 
+              formControlName="query"
+              (keyup.enter)="onSearch()"
+              class="search-input">
+            <input 
+              matInput 
+              type="text" 
+              placeholder="Location (e.g., Paris, France)" 
+              formControlName="location"
+              (keyup.enter)="onSearch()"
+              class="search-location">
+            <button mat-raised-button color="primary" type="submit" [disabled]="searchLoading" class="search-button">
+              <mat-icon *ngIf="!searchLoading">search</mat-icon>
+              <mat-spinner *ngIf="searchLoading" diameter="20"></mat-spinner>
+              Search
+            </button>
+          </div>
+        </form>
       </div>
       
       <!-- Filters -->
-      <div class="filters-container" [formGroup]="filterForm">
+      <div class="filters-container" [formGroup]="filtersForm">
         <div class="filters-grid">
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Employment Type</mat-label>
@@ -91,7 +93,7 @@
             </mat-card-title>
             <mat-form-field appearance="outline" class="map-type-selector">
               <mat-label>Map Type</mat-label>
-              <mat-select [(ngModel)]="mapType" (selectionChange)="onMapTypeChange()">
+              <mat-select formControlName="mapType">
                 <mat-option value="jobs">Job Density</mat-option>
                 <mat-option value="salary">Average Salary</mat-option>
               </mat-select>
