@@ -1,8 +1,10 @@
-import { Component, OnInit, AfterViewInit, ViewChild, ElementRef, inject } from '@angular/core';
+import { Component, OnInit, AfterViewInit, ViewChild, ElementRef, inject, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { JobsService } from '../../core/services/jobs.service';
 import { AnalyticsService } from '../../core/services/analytics.service';
+import { UiStateService } from '../../core/services/ui-state.service';
 import { JobStatistics, HeatMapData } from '../../core/models/statistics.model';
 import { JobOffer, SearchJobMarketResult, Company } from '../../core/models/job-offer.model';
 import { ChartConfig } from '../../core/services/analytics.service';
@@ -15,8 +17,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
+import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader/skeleton-loader.component';
 import * as L from 'leaflet';
 
 @Component({
@@ -24,7 +29,7 @@ import * as L from 'leaflet';
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     MatCardModule,
     MatProgressSpinnerModule,
     MatIconModule,
@@ -34,35 +39,50 @@ import * as L from 'leaflet';
     MatSelectModule,
     MatChipsModule,
     MatPaginatorModule,
+    MatSnackBarModule,
     StatCardComponent,
-    ChartComponent
+    ChartComponent,
+    EmptyStateComponent,
+    SkeletonLoaderComponent
   ],
   templateUrl: './dashboard.component.html',
-  styleUrl: './dashboard.component.scss'
+  styleUrl: './dashboard.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DashboardComponent implements OnInit, AfterViewInit {
   private jobsService = inject(JobsService);
   private analyticsService = inject(AnalyticsService);
+  private uiStateService = inject(UiStateService);
+  private fb = inject(FormBuilder);
+  private cdr = inject(ChangeDetectorRef);
   
-  // Track previous filter values to detect changes
-  private previousFilters = {
-    employmentType: '',
-    workMode: '',
-    experienceLevel: '',
-    minSalary: null as number | null,
-    maxSalary: null as number | null
-  };
+  // Reactive form for filters
+  filterForm: FormGroup;
   
   @ViewChild('mapContainer', { static: false }) mapContainer!: ElementRef;
   
-  // Search and filters
+  // Search and filters (for template compatibility)
   searchQuery: string = '';
   searchLocation: string = '';
-  employmentType: string = '';
-  workMode: string = '';
-  experienceLevel: string = '';
-  minSalary: number | null = null;
-  maxSalary: number | null = null;
+  
+  // Computed from form
+  get employmentType(): string {
+    return this.filterForm?.get('employmentType')?.value || '';
+  }
+  get workMode(): string {
+    return this.filterForm?.get('workMode')?.value || '';
+  }
+  get experienceLevel(): string {
+    return this.filterForm?.get('experienceLevel')?.value || '';
+  }
+  get minSalary(): number | null {
+    const value = this.filterForm?.get('minSalary')?.value;
+    return value ? Number(value) : null;
+  }
+  get maxSalary(): number | null {
+    const value = this.filterForm?.get('maxSalary')?.value;
+    return value ? Number(value) : null;
+  }
   
   // Data
   statistics: JobStatistics | null = null;
@@ -94,7 +114,10 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   // Filter options
   employmentTypes = ['CDI', 'CDD', 'Freelance', 'Internship', 'Other'];
   workModes = ['Remote', 'Hybrid', 'Onsite', 'Flexible'];
-  experienceLevels = ['Junior', 'Mid', 'Senior', 'Lead', 'Any'];
+  experienceLevels = ['Junior', 'Mid', 'Senior', 'Lead'];
+  
+  // Empty state flag
+  hasNoResults = false;
   
   // Computed data
   uniqueCompanies: Company[] = [];
@@ -107,14 +130,36 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   pageIndex = 0;
   totalJobsCount = 0;
   
-  // Debounce timer for auto-search
-  private searchDebounceTimer: any;
-  
   // Track if user has searched
   hasSearched = false;
   
+  constructor() {
+    // Initialize reactive form
+    this.filterForm = this.fb.group({
+      employmentType: [''],
+      workMode: [''],
+      experienceLevel: [''],
+      minSalary: [null],
+      maxSalary: [null]
+    });
+  }
+  
   ngOnInit() {
     // Don't load anything initially - just show search UI
+    
+    // Subscribe to filter changes with debouncing
+    this.filterForm.valueChanges
+      .pipe(
+        debounceTime(250), // 250ms debounce for smooth UX
+        distinctUntilChanged((prev, curr) => {
+          return JSON.stringify(prev) === JSON.stringify(curr);
+        })
+      )
+      .subscribe(() => {
+        if (this.hasSearched && this.allJobs.length > 0) {
+          this.applyClientSideFilters();
+        }
+      });
   }
   
   ngAfterViewInit() {
@@ -185,11 +230,6 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   
   
   onSearch() {
-    // Clear any pending debounce
-    if (this.searchDebounceTimer) {
-      clearTimeout(this.searchDebounceTimer);
-    }
-    
     // If no search query or location, clear results
     if (!this.searchQuery && !this.searchLocation) {
       this.searchResults = null;
@@ -228,24 +268,14 @@ export class DashboardComponent implements OnInit, AfterViewInit {
         
         this.searchLoading = false;
         
-        // Smooth scroll to results after search
-        setTimeout(() => {
-          const resultsSection = document.getElementById('results-section') || document.querySelector('.results-section');
-          if (resultsSection) {
-            const offset = 80;
-            const elementPosition = resultsSection.getBoundingClientRect().top;
-            const offsetPosition = elementPosition + window.pageYOffset - offset;
-            
-            window.scrollTo({
-              top: Math.max(0, offsetPosition),
-              behavior: 'smooth'
-            });
-          }
-        }, 200);
+        // Use CSS scroll-margin-top instead of JS scroll (no scroll-linked positioning)
+        // Results section has scroll-margin-top: 80px in CSS
       },
       error: (err) => {
         console.error('Search error:', err);
         this.searchLoading = false;
+        this.uiStateService.showError('Failed to search jobs. Please try again.');
+        this.cdr.markForCheck();
       }
     });
   }
@@ -339,57 +369,10 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     }
   }
   
-  // Auto-apply filters when they change (instant, no API call)
-  onFilterChange() {
-    if (this.searchDebounceTimer) {
-      clearTimeout(this.searchDebounceTimer);
-    }
-    
-    // Only apply filters if we have jobs loaded
-    if (!this.hasSearched || this.allJobs.length === 0) {
-      return;
-    }
-    
-    // Check if filters actually changed
-    const filtersChanged = 
-      this.previousFilters.employmentType !== this.employmentType ||
-      this.previousFilters.workMode !== this.workMode ||
-      this.previousFilters.experienceLevel !== this.experienceLevel ||
-      this.previousFilters.minSalary !== this.minSalary ||
-      this.previousFilters.maxSalary !== this.maxSalary;
-    
-    if (!filtersChanged) {
-      return;
-    }
-    
-    // Apply filters instantly (no debounce needed for client-side filtering)
-    this.applyClientSideFilters();
-    
-    // Update previous filters
-    this.previousFilters = {
-      employmentType: this.employmentType,
-      workMode: this.workMode,
-      experienceLevel: this.experienceLevel,
-      minSalary: this.minSalary,
-      maxSalary: this.maxSalary
-    };
-    
-    // Smooth scroll to results when filters change (if results are visible)
-    if (this.hasSearched && this.filteredJobs.length > 0) {
-      setTimeout(() => {
-        const resultsSection = document.getElementById('results-section') || document.querySelector('.results-section');
-        if (resultsSection) {
-          const offset = 80;
-          const elementPosition = resultsSection.getBoundingClientRect().top;
-          const offsetPosition = elementPosition + window.pageYOffset - offset;
-          
-          window.scrollTo({
-            top: Math.max(0, offsetPosition),
-            behavior: 'smooth'
-          });
-        }
-      }, 50);
-    }
+  // Filter changes are now handled by reactive form subscription
+  // This method is kept for template compatibility but does nothing
+  onFilterChange(): void {
+    // Handled by reactive form subscription
   }
   
   // Statistics are now calculated directly from search results
@@ -404,8 +387,18 @@ export class DashboardComponent implements OnInit, AfterViewInit {
       this.experienceLevelChartConfig = null;
       this.salaryChartConfig = null;
       this.dataQualityWarning = null;
+      this.hasNoResults = true;
+      
+      // Show notification if filters are active
+      if (this.hasActiveFilters()) {
+        this.uiStateService.showInfo('No results match your current filters', 3000);
+      }
+      
+      this.cdr.markForCheck();
       return;
     }
+    
+    this.hasNoResults = false;
     
     // Use analytics service to calculate statistics and generate charts
     const analytics = this.analyticsService.analyzeJobs(this.filteredJobs);
@@ -421,6 +414,19 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     
     // Update data quality warning
     this.dataQualityWarning = this.analyticsService.getQualityWarning(analytics.quality);
+    
+    // Show partial data warning if needed
+    if (analytics.quality.hasLimitedSample && !analytics.quality.hasInsufficientSalaryData) {
+      // Already handled by dataQualityWarning
+    }
+    
+    this.cdr.markForCheck();
+  }
+  
+  // Check if any filters are active
+  hasActiveFilters(): boolean {
+    return !!(this.employmentType || this.workMode || this.experienceLevel || 
+              this.minSalary || this.maxSalary);
   }
   
   // Update map with job locations from filtered jobs (optimized and fast)
@@ -690,33 +696,36 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     // Update displayed jobs (client-side pagination)
     this.updatePagination();
     
-    // Don't scroll - let user stay where they are for better UX
-    // Only scroll if they're at the top of the page
-    if (window.scrollY < 200) {
-      setTimeout(() => {
-        const resultsSection = document.getElementById('results-section');
-        if (resultsSection) {
-          const offset = 100;
-          const elementPosition = resultsSection.getBoundingClientRect().top;
-          const offsetPosition = elementPosition + window.pageYOffset - offset;
-          
-          window.scrollTo({
-            top: Math.max(0, offsetPosition),
-            behavior: 'smooth'
-          });
-        }
-      }, 50);
-    }
+    // No scroll-linked positioning - user stays where they are
+    this.cdr.markForCheck();
+  }
+  
+  // TrackBy functions for performance
+  trackByJobId(index: number, job: JobOffer): string {
+    return job.id;
+  }
+  
+  trackByCompanyId(index: number, company: Company): string {
+    return company.id;
+  }
+  
+  trackByLabel(index: number, item: [string, number]): string {
+    return item[0];
   }
   
   clearFilters() {
     this.searchQuery = '';
     this.searchLocation = '';
-    this.employmentType = '';
-    this.workMode = '';
-    this.experienceLevel = '';
-    this.minSalary = null;
-    this.maxSalary = null;
+    
+    // Reset reactive form
+    this.filterForm.patchValue({
+      employmentType: '',
+      workMode: '',
+      experienceLevel: '',
+      minSalary: null,
+      maxSalary: null
+    }, { emitEvent: false }); // Don't trigger valueChanges
+    
     this.searchResults = null;
     this.allJobs = [];
     this.filteredJobs = [];
@@ -728,11 +737,14 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     this.pageIndex = 0;
     this.totalJobsCount = 0;
     this.hasSearched = false;
+    this.hasNoResults = false;
     this.statistics = null;
     this.heatMapData = null;
     if (this.map) {
       this.clearMap();
     }
+    
+    this.cdr.markForCheck();
   }
   
   onMapTypeChange() {

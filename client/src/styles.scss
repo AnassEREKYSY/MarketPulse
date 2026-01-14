@@ -163,6 +163,32 @@ h3 {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
+// Snackbar Styles
+.custom-snackbar {
+  background: #1e293b !important;
+  color: white !important;
+}
+
+.error-snackbar {
+  background: #dc2626 !important;
+  color: white !important;
+}
+
+.info-snackbar {
+  background: #2563eb !important;
+  color: white !important;
+}
+
+.warning-snackbar {
+  background: #f59e0b !important;
+  color: white !important;
+}
+
+.success-snackbar {
+  background: #10b981 !important;
+  color: white !important;
+}
+
 // Responsive Design
 @media (max-width: 768px) {
   .container {
