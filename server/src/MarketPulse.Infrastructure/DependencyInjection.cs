@@ -21,10 +21,37 @@ public static class DependencyInjection
         {
             try
             {
-                var redisConfig = $"{redisConnection},abortConnect=false";
-                services.AddSingleton<IConnectionMultiplexer>(_ =>
-                    ConnectionMultiplexer.Connect(redisConfig));
-                services.AddScoped<ICacheService, RedisCacheService>();
+                services.AddSingleton<IConnectionMultiplexer>(sp =>
+                {
+                    var logger = sp.GetRequiredService<ILoggerFactory>()
+                                .CreateLogger("Redis");
+
+                    try
+                    {
+                        var options = ConfigurationOptions.Parse(redisConfig);
+                        options.AbortOnConnectFail = false;
+                        options.ConnectRetry = 3;
+                        options.ConnectTimeout = 3000;
+
+                        return ConnectionMultiplexer.Connect(options);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Redis unavailable, falling back to in-memory cache");
+                        return null!;
+                    }
+                });
+
+                services.AddScoped<ICacheService>(sp =>
+                {
+                    var redis = sp.GetService<IConnectionMultiplexer>();
+                    if (redis != null && redis.IsConnected)
+                        return new RedisCacheService(redis, sp.GetRequiredService<ILogger<RedisCacheService>>());
+
+                    return new InMemoryCacheService(
+                        sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>());
+                });
+
             }
             catch
             {

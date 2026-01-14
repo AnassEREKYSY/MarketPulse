@@ -12,9 +12,7 @@ import { CacheService } from './cache.service';
 export class JobsService {
   private http = inject(HttpClient);
   private cacheService = inject(CacheService);
-  private apiUrl = (typeof window !== 'undefined' && (window as any).API_URL) 
-    ? `${(window as any).API_URL}/api/jobs`
-    : 'http://localhost:5190/api/jobs';
+  private apiUrl = '/api/jobs';
   
   // Geocoding cache (longer TTL since locations don't change)
   private geocodeCache = new Map<string, { lat: number, lng: number, timestamp: number }>();

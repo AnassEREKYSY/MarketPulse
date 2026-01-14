@@ -35,7 +35,7 @@ services:
     networks:
       - marketpulse-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/jobs/statistics || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -50,8 +50,6 @@ services:
     depends_on:
       api:
         condition: service_started
-    environment:
-      - API_URL=http://${OVH_HOST:-localhost}:${API_PORT:-5190}
     networks:
       - marketpulse-network
 

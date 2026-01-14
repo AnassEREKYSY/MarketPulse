@@ -230,7 +230,7 @@ services:
     networks:
       - marketpulse-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/jobs/statistics || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
