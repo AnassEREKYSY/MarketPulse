@@ -154,9 +154,12 @@ export class ChartComponent implements OnInit, OnChanges {
         }]
       };
     } else if (this.config.type === 'bar') {
+      // Check if this is a count chart (distribution) or salary chart
+      const isCountChart = this.config.options?.isCountChart === true;
+      
       const yAxisConfig: any = {
         type: 'value',
-        name: 'Salary (EUR)',
+        name: isCountChart ? 'Number of Jobs' : 'Salary (EUR/year)',
         nameLocation: 'middle',
         nameGap: 50,
         nameTextStyle: {
@@ -168,10 +171,16 @@ export class ChartComponent implements OnInit, OnChanges {
           color: '#64748b',
           fontSize: 11,
           formatter: (value: any) => {
-            if (value >= 1000) {
-              return (value / 1000).toFixed(1) + 'k €';
+            if (isCountChart) {
+              // Count chart: no € symbol, just numbers
+              return value.toLocaleString();
+            } else {
+              // Salary chart: show €
+              if (value >= 1000) {
+                return (value / 1000).toFixed(1) + 'k €';
+              }
+              return value.toLocaleString() + ' €';
             }
-            return value.toLocaleString() + ' €';
           }
         },
         axisLine: {
@@ -205,17 +214,20 @@ export class ChartComponent implements OnInit, OnChanges {
             fontSize: 13
           },
           formatter: (params: any) => {
+            const isCountChart = this.config.options?.isCountChart === true;
+            const suffix = isCountChart ? '' : ' €';
+            
             if (Array.isArray(params)) {
               return params.map((p: any) => 
                 `<div style="padding: 2px 0;">
                   <strong>${p.name}</strong><br/>
-                  ${p.seriesName}: <strong style="color: #667eea;">${p.value.toLocaleString()} €</strong>
+                  ${p.seriesName}: <strong style="color: #667eea;">${p.value.toLocaleString()}${suffix}</strong>
                 </div>`
               ).join('');
             }
             return `<div style="padding: 4px;">
               <strong>${params.name}</strong><br/>
-              ${params.seriesName}: <strong style="color: #667eea;">${params.value.toLocaleString()} €</strong>
+              ${params.seriesName}: <strong style="color: #667eea;">${params.value.toLocaleString()}${suffix}</strong>
             </div>`;
           }
         },
@@ -281,10 +293,17 @@ export class ChartComponent implements OnInit, OnChanges {
             fontWeight: 600,
             color: '#475569',
             formatter: (params: any) => {
-              if (params.value >= 1000) {
-                return (params.value / 1000).toFixed(1) + 'k €';
+              const isCountChart = this.config.options?.isCountChart === true;
+              if (isCountChart) {
+                // Count chart: no € symbol
+                return params.value.toLocaleString();
+              } else {
+                // Salary chart: show €
+                if (params.value >= 1000) {
+                  return (params.value / 1000).toFixed(1) + 'k €';
+                }
+                return params.value.toLocaleString() + ' €';
               }
-              return params.value.toLocaleString() + ' €';
             }
           },
           emphasis: {
