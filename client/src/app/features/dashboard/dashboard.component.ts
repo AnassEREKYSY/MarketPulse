@@ -1,7 +1,8 @@
 import { Component, OnInit, AfterViewInit, ViewChild, ElementRef, inject, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
+import { Subject, EMPTY } from 'rxjs';
 import { JobsService } from '../../core/services/jobs.service';
 import { AnalyticsService } from '../../core/services/analytics.service';
 import { UiStateService } from '../../core/services/ui-state.service';
@@ -144,6 +145,9 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   // Track if user has searched
   hasSearched = false;
   
+  // Subject for search requests (for switchMap optimization)
+  private searchSubject = new Subject<{ query?: string; location?: string }>();
+  
   constructor() {
     // Initialize reactive form with all filters and search fields
     this.filtersForm = this.fb.group({
@@ -160,6 +164,51 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   
   ngOnInit() {
     // Don't load anything initially - just show search UI
+    
+    // Subscribe to search requests with switchMap (cancels previous requests)
+    this.searchSubject
+      .pipe(
+        debounceTime(300), // Debounce search requests
+        distinctUntilChanged((prev: { query?: string; location?: string }, curr: { query?: string; location?: string }) => {
+          return prev.query === curr.query && prev.location === curr.location;
+        }),
+        switchMap(({ query, location }: { query?: string; location?: string }) => {
+          if (!query && !location) {
+            return EMPTY;
+          }
+          
+          this.searchLoading = true;
+          this.hasSearched = true;
+          this.pageIndex = 0;
+          this.cdr.markForCheck();
+          
+          return this.jobsService.searchJobs({
+            query: query || undefined,
+            location: location || undefined,
+            fetchAll: true
+          }).pipe(
+            catchError((error) => {
+              console.error('Search error:', error);
+              this.uiStateService.showError('Failed to search jobs. Please try again.');
+              this.searchLoading = false;
+              this.cdr.markForCheck();
+              return EMPTY;
+            })
+          );
+        })
+      )
+      .subscribe({
+        next: (result: SearchJobMarketResult) => {
+          this.allJobs = result.jobs || [];
+          this.searchResults = result;
+          this.searchLoading = false;
+          
+          // Apply client-side filtering
+          this.applyClientSideFilters();
+          
+          this.cdr.markForCheck();
+        }
+      });
     
     // Subscribe to filter changes with debouncing (excluding query and location which trigger search)
     this.filtersForm.valueChanges
@@ -283,47 +332,19 @@ export class DashboardComponent implements OnInit, AfterViewInit {
       this.filteredJobs = [];
       this.displayedJobs = [];
       this.uniqueCompanies = [];
+      this.displayedCompanies = [];
       this.hasSearched = false;
       this.statistics = null;
       this.heatMapData = null;
       if (this.map) {
         this.clearMap();
       }
+      this.cdr.markForCheck();
       return;
     }
     
-    this.hasSearched = true;
-    this.searchLoading = true;
-    this.pageIndex = 0; // Reset to first page on new search
-    
-    // Fetch ALL jobs without filters (backend will only filter by query/location)
-    // We'll do client-side filtering for better performance
-    this.jobsService.searchJobs({
-      query: query || undefined,
-      location: location || undefined,
-      // Don't send filters - we'll filter client-side
-      fetchAll: true // Fetch all results
-    }).subscribe({
-      next: (result) => {
-        // Store all jobs
-        this.allJobs = result.jobs || [];
-        this.searchResults = result;
-        
-        // Apply client-side filtering
-        this.applyClientSideFilters();
-        
-        this.searchLoading = false;
-        
-        // Use CSS scroll-margin-top instead of JS scroll (no scroll-linked positioning)
-        // Results section has scroll-margin-top: 80px in CSS
-      },
-      error: (err) => {
-        console.error('Search error:', err);
-        this.searchLoading = false;
-        this.uiStateService.showError('Failed to search jobs. Please try again.');
-        this.cdr.markForCheck();
-      }
-    });
+    // Emit search request to subject (will be handled by switchMap in ngOnInit)
+    this.searchSubject.next({ query, location });
   }
   
   // Apply client-side filters (instant, no API call)
@@ -437,7 +458,9 @@ export class DashboardComponent implements OnInit, AfterViewInit {
       
       // Show notification if filters are active
       if (this.hasActiveFilters()) {
-        this.uiStateService.showInfo('No results match your current filters', 3000);
+        this.uiStateService.showWarning('No results match your current filters');
+      } else if (this.hasSearched) {
+        this.uiStateService.showInfo('No jobs found for your search criteria');
       }
       
       this.cdr.markForCheck();
@@ -843,7 +866,27 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     if (!this.statistics?.salaryStatistics?.averageSalary) {
       return 'Insufficient data';
     }
-    return this.analyticsService.formatSalary(this.statistics.salaryStatistics.averageSalary);
+    const salary = this.statistics.salaryStatistics.averageSalary;
+    if (salary === null || salary === undefined || isNaN(salary) || salary <= 0) {
+      return 'Insufficient data';
+    }
+    return this.analyticsService.formatSalary(salary);
+  }
+  
+  // Format helpers for stat cards
+  getTotalJobs(): number | string {
+    if (!this.statistics) {
+      return 0;
+    }
+    return this.statistics.totalJobs || 0;
+  }
+  
+  getCompaniesCount(): number {
+    return this.uniqueCompanies.length || 0;
+  }
+  
+  getLocationsCount(): number {
+    return this.getTopLocationsCount() || 0;
   }
   
   getCompanyJobCount(companyId: string): number {

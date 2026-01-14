@@ -163,7 +163,27 @@ h3 {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
-// Snackbar Styles
+// Snackbar Styles - Top-right, colored, dismissable
+.dismissable-snackbar {
+  min-width: 300px !important;
+  max-width: 500px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  font-weight: 500 !important;
+  
+  .mat-mdc-snack-bar-action {
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 18px !important;
+    opacity: 0.9 !important;
+    margin-left: 16px !important;
+    
+    &:hover {
+      opacity: 1 !important;
+    }
+  }
+}
+
 .custom-snackbar {
   background: #1e293b !important;
   color: white !important;
@@ -172,21 +192,25 @@ h3 {
 .error-snackbar {
   background: #dc2626 !important;
   color: white !important;
+  border-left: 4px solid #991b1b !important;
 }
 
 .info-snackbar {
   background: #2563eb !important;
   color: white !important;
+  border-left: 4px solid #1e40af !important;
 }
 
 .warning-snackbar {
   background: #f59e0b !important;
   color: white !important;
+  border-left: 4px solid #d97706 !important;
 }
 
 .success-snackbar {
   background: #10b981 !important;
   color: white !important;
+  border-left: 4px solid #059669 !important;
 }
 
 // Responsive Design

@@ -139,7 +139,7 @@
       <div class="stats-grid">
         <app-stat-card
           title="Total Jobs"
-          [value]="statistics.totalJobs || 0"
+          [value]="getTotalJobs()"
           icon="work_outline"
           color="primary">
         </app-stat-card>
@@ -147,20 +147,21 @@
         <app-stat-card
           title="Average Salary"
           [value]="getAverageSalary()"
+          format="currency"
           icon="payments"
           color="accent">
         </app-stat-card>
         
         <app-stat-card
           title="Companies"
-          [value]="uniqueCompanies.length"
+          [value]="getCompaniesCount()"
           icon="business_center"
           color="primary">
         </app-stat-card>
         
         <app-stat-card
           title="Locations"
-          [value]="getTopLocationsCount()"
+          [value]="getLocationsCount()"
           icon="location_on"
           color="accent">
         </app-stat-card>
