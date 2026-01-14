@@ -12,12 +12,17 @@ import { MatIconModule } from '@angular/material/icon';
 })
 export class StatCardComponent {
   @Input() title: string = '';
-  @Input() value: number = 0;
+  @Input() value: number | string = 0;
   @Input() icon: string = '';
   @Input() color: 'primary' | 'accent' | 'warn' = 'primary';
   @Input() format: 'number' | 'currency' = 'number';
 
   get formattedValue(): string {
+    // If value is already a string, return it as-is (e.g., "Insufficient data")
+    if (typeof this.value === 'string') {
+      return this.value;
+    }
+    
     if (this.format === 'currency') {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',

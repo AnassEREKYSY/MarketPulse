@@ -2,8 +2,10 @@ import { Component, OnInit, AfterViewInit, ViewChild, ElementRef, inject } from 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { JobsService } from '../../core/services/jobs.service';
+import { AnalyticsService } from '../../core/services/analytics.service';
 import { JobStatistics, HeatMapData } from '../../core/models/statistics.model';
 import { JobOffer, SearchJobMarketResult, Company } from '../../core/models/job-offer.model';
+import { ChartConfig } from '../../core/services/analytics.service';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
@@ -40,6 +42,7 @@ import * as L from 'leaflet';
 })
 export class DashboardComponent implements OnInit, AfterViewInit {
   private jobsService = inject(JobsService);
+  private analyticsService = inject(AnalyticsService);
   
   // Track previous filter values to detect changes
   private previousFilters = {
@@ -68,6 +71,15 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   filteredJobs: JobOffer[] = []; // Jobs after client-side filtering
   displayedJobs: JobOffer[] = []; // Jobs for current page
   heatMapData: HeatMapData | null = null;
+  
+  // Chart configurations
+  employmentTypeChartConfig: ChartConfig | null = null;
+  workModeChartConfig: ChartConfig | null = null;
+  experienceLevelChartConfig: ChartConfig | null = null;
+  salaryChartConfig: ChartConfig | null = null;
+  
+  // Data quality
+  dataQualityWarning: string | null = null;
   
   // Loading states
   loading = false;
@@ -383,130 +395,32 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   // Statistics are now calculated directly from search results
   // No need for separate API call - faster and more accurate
   
-  // Calculate statistics from filtered jobs (all filtered jobs, not just current page)
+  // Calculate statistics from filtered jobs using analytics service
   calculateStatisticsFromFilteredJobs() {
     if (!this.filteredJobs || this.filteredJobs.length === 0) {
       this.statistics = this.getEmptyStatistics();
-      // Force chart update with empty data
-      setTimeout(() => {
-        this.statistics = this.getEmptyStatistics();
-      }, 0);
+      this.employmentTypeChartConfig = null;
+      this.workModeChartConfig = null;
+      this.experienceLevelChartConfig = null;
+      this.salaryChartConfig = null;
+      this.dataQualityWarning = null;
       return;
     }
     
-    // Use all filtered jobs for accurate statistics
-    const jobs = this.filteredJobs;
-    const stats: JobStatistics = {
-      totalJobs: jobs.length,
-      salaryStatistics: {
-        averageSalary: undefined,
-        medianSalary: undefined,
-        minSalary: undefined,
-        maxSalary: undefined,
-        averageSalaryByExperience: {},
-        averageSalaryByLocation: {}
-      },
-      topLocations: {},
-      topCompanies: {},
-      jobsByEmploymentType: {},
-      jobsByWorkMode: {},
-      jobsByExperienceLevel: {}
-    };
+    // Use analytics service to calculate statistics and generate charts
+    const analytics = this.analyticsService.analyzeJobs(this.filteredJobs);
     
-    // Calculate statistics from ALL jobs in current results
-    // This ensures charts reflect the actual filtered data
-    const salaries: number[] = [];
-    const salariesByExp: { [key: string]: number[] } = {};
-    const salariesByLoc: { [key: string]: number[] } = {};
+    // Update statistics
+    this.statistics = analytics.statistics;
     
-    // Process all jobs to build accurate statistics
-    jobs.forEach(job => {
-      // Employment Type
-      if (job.employmentType) {
-        stats.jobsByEmploymentType[job.employmentType] = (stats.jobsByEmploymentType[job.employmentType] || 0) + 1;
-      }
-      
-      // Work Mode
-      if (job.workMode) {
-        stats.jobsByWorkMode[job.workMode] = (stats.jobsByWorkMode[job.workMode] || 0) + 1;
-      }
-      
-      // Experience Level
-      if (job.experienceLevel) {
-        stats.jobsByExperienceLevel[job.experienceLevel] = (stats.jobsByExperienceLevel[job.experienceLevel] || 0) + 1;
-      }
-      
-      // Locations
-      if (job.location?.city) {
-        const locKey = `${job.location.city}, ${job.location.country || ''}`;
-        stats.topLocations[locKey] = (stats.topLocations[locKey] || 0) + 1;
-      }
-      
-      // Companies
-      if (job.company?.name) {
-        stats.topCompanies[job.company.name] = (stats.topCompanies[job.company.name] || 0) + 1;
-      }
-      
-      // Salaries
-      if (job.salaryRange?.averageSalary) {
-        const salary = job.salaryRange.averageSalary;
-        salaries.push(salary);
-        
-        if (job.experienceLevel) {
-          if (!salariesByExp[job.experienceLevel]) {
-            salariesByExp[job.experienceLevel] = [];
-          }
-          salariesByExp[job.experienceLevel].push(salary);
-        }
-        
-        if (job.location?.city) {
-          const locKey = `${job.location.city}, ${job.location.country || ''}`;
-          if (!salariesByLoc[locKey]) {
-            salariesByLoc[locKey] = [];
-          }
-          salariesByLoc[locKey].push(salary);
-        }
-      }
-    });
+    // Update chart configurations
+    this.employmentTypeChartConfig = analytics.charts.employmentType || null;
+    this.workModeChartConfig = analytics.charts.workMode || null;
+    this.experienceLevelChartConfig = analytics.charts.experienceLevel || null;
+    this.salaryChartConfig = analytics.charts.salaryByExperience || null;
     
-    // Calculate salary statistics (rounded for display)
-    if (salaries.length > 0) {
-      salaries.sort((a, b) => a - b);
-      stats.salaryStatistics.minSalary = Math.round(salaries[0]);
-      stats.salaryStatistics.maxSalary = Math.round(salaries[salaries.length - 1]);
-      stats.salaryStatistics.averageSalary = Math.round(salaries.reduce((a, b) => a + b, 0) / salaries.length);
-      stats.salaryStatistics.medianSalary = Math.round(
-        salaries.length % 2 === 0
-          ? (salaries[salaries.length / 2 - 1] + salaries[salaries.length / 2]) / 2
-          : salaries[Math.floor(salaries.length / 2)]
-      );
-    }
-    
-    // Average salary by experience (only if we have salary data)
-    Object.keys(salariesByExp).forEach(exp => {
-      const expSalaries = salariesByExp[exp];
-      if (expSalaries.length > 0) {
-        stats.salaryStatistics.averageSalaryByExperience[exp] = 
-          Math.round(expSalaries.reduce((a, b) => a + b, 0) / expSalaries.length);
-      }
-    });
-    
-    // Average salary by location (only if we have salary data)
-    Object.keys(salariesByLoc).forEach(loc => {
-      const locSalaries = salariesByLoc[loc];
-      if (locSalaries.length > 0) {
-        stats.salaryStatistics.averageSalaryByLocation[loc] = 
-          Math.round(locSalaries.reduce((a, b) => a + b, 0) / locSalaries.length);
-      }
-    });
-    
-    // Update statistics and force change detection
-    this.statistics = { ...stats }; // Create new object to trigger change detection
-    
-    // Force Angular to detect changes for charts
-    setTimeout(() => {
-      // Charts will update via ngOnChanges when statistics change
-    }, 0);
+    // Update data quality warning
+    this.dataQualityWarning = this.analyticsService.getQualityWarning(analytics.quality);
   }
   
   // Update map with job locations from filtered jobs (optimized and fast)
@@ -829,126 +743,21 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     }
   }
   
-  // Chart data methods - All changed to bar/column charts with accurate data
+  // Chart data methods - now using pre-built chart configurations
   getEmploymentTypeChartData() {
-    if (!this.statistics?.jobsByEmploymentType) return null;
-    const data = this.statistics.jobsByEmploymentType;
-    if (Object.keys(data).length === 0) return null;
-    
-    // Filter out zero values and sort by value descending
-    const filtered = Object.entries(data).filter(([, value]) => (value as number) > 0);
-    if (filtered.length === 0) return null;
-    
-    const sorted = filtered.sort(([, a], [, b]) => (b as number) - (a as number));
-    
-    return {
-      type: 'bar',
-      title: { text: 'Employment Type Distribution' },
-      data: {
-        labels: sorted.map(([key]) => key),
-        datasets: [{
-          label: 'Number of Jobs',
-          data: sorted.map(([, value]) => value as number),
-          backgroundColor: '#667eea'
-        }]
-      },
-      options: {
-        yAxis: { name: 'Number of Jobs' }
-      }
-    };
+    return this.employmentTypeChartConfig;
   }
   
   getWorkModeChartData() {
-    if (!this.statistics?.jobsByWorkMode) return null;
-    const data = this.statistics.jobsByWorkMode;
-    if (Object.keys(data).length === 0) return null;
-    
-    // Filter out zero values and sort by value descending
-    const filtered = Object.entries(data).filter(([, value]) => (value as number) > 0);
-    if (filtered.length === 0) return null;
-    
-    const sorted = filtered.sort(([, a], [, b]) => (b as number) - (a as number));
-    
-    return {
-      type: 'bar',
-      title: { text: 'Work Mode Analysis' },
-      data: {
-        labels: sorted.map(([key]) => key),
-        datasets: [{
-          label: 'Number of Jobs',
-          data: sorted.map(([, value]) => value as number),
-          backgroundColor: '#764ba2'
-        }]
-      },
-      options: {
-        yAxis: { name: 'Number of Jobs' }
-      }
-    };
+    return this.workModeChartConfig;
   }
   
   getExperienceLevelChartData() {
-    if (!this.statistics?.jobsByExperienceLevel) return null;
-    const data = this.statistics.jobsByExperienceLevel;
-    if (Object.keys(data).length === 0) return null;
-    
-    // Filter out zero values and sort by value descending
-    const filtered = Object.entries(data).filter(([, value]) => (value as number) > 0);
-    if (filtered.length === 0) return null;
-    
-    const sorted = filtered.sort(([, a], [, b]) => (b as number) - (a as number));
-    
-    return {
-      type: 'bar',
-      title: { text: 'Experience Level Distribution' },
-      data: {
-        labels: sorted.map(([key]) => key),
-        datasets: [{
-          label: 'Number of Jobs',
-          data: sorted.map(([, value]) => value as number),
-          backgroundColor: '#f093fb'
-        }]
-      },
-      options: {
-        yAxis: { name: 'Number of Jobs' }
-      }
-    };
+    return this.experienceLevelChartConfig;
   }
   
   getSalaryChartData() {
-    if (!this.statistics?.salaryStatistics?.averageSalaryByExperience) return null;
-    const data = this.statistics.salaryStatistics.averageSalaryByExperience;
-    if (Object.keys(data).length === 0) return null;
-    
-    // Filter out zero/null values
-    const filtered = Object.entries(data).filter(([, value]) => value && (value as number) > 0);
-    if (filtered.length === 0) return null;
-    
-    // Sort by experience level order (Junior, Mid, Senior, Lead, Any)
-    const experienceOrder = ['Junior', 'Mid', 'Senior', 'Lead', 'Any'];
-    const sorted = filtered.sort(([keyA], [keyB]) => {
-      const indexA = experienceOrder.indexOf(keyA);
-      const indexB = experienceOrder.indexOf(keyB);
-      if (indexA === -1 && indexB === -1) return keyA.localeCompare(keyB);
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      return indexA - indexB;
-    });
-    
-    return {
-      type: 'bar',
-      title: { text: 'Average Salary by Experience Level' },
-      data: {
-        labels: sorted.map(([key]) => key),
-        datasets: [{
-          label: 'Average Salary (EUR/year)',
-          data: sorted.map(([, value]) => Math.round(value as number)),
-          backgroundColor: '#4facfe'
-        }]
-      },
-      options: {
-        yAxis: { name: 'Salary (EUR/year)' }
-      }
-    };
+    return this.salaryChartConfig;
   }
   
   getTopCompanies() {
@@ -961,7 +770,22 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   
   getTopLocationsCount(): number {
     if (!this.statistics?.topLocations) return 0;
-    return Object.keys(this.statistics.topLocations).length;
+    // Count unique cities (normalized, lowercase, trimmed)
+    const uniqueCities = new Set<string>();
+    Object.keys(this.statistics.topLocations).forEach(loc => {
+      const city = loc.split(',')[0]?.trim().toLowerCase();
+      if (city) {
+        uniqueCities.add(city);
+      }
+    });
+    return uniqueCities.size;
+  }
+  
+  getAverageSalary(): string {
+    if (!this.statistics?.salaryStatistics?.averageSalary) {
+      return 'Insufficient data';
+    }
+    return this.analyticsService.formatSalary(this.statistics.salaryStatistics.averageSalary);
   }
   
   getCompanyJobCount(companyId: string): number {

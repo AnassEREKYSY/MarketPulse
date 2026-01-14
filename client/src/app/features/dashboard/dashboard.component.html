@@ -128,19 +128,23 @@
   <div class="container">
     <!-- Statistics Cards -->
     <div class="stats-section" *ngIf="statistics">
+      <!-- Data Quality Warning -->
+      <div *ngIf="dataQualityWarning" class="data-quality-warning">
+        <mat-icon>warning</mat-icon>
+        <span>{{ dataQualityWarning }}</span>
+      </div>
+      
       <div class="stats-grid">
         <app-stat-card
           title="Total Jobs"
-          [value]="searchResults.totalCount || 0"
+          [value]="statistics.totalJobs || 0"
           icon="work_outline"
           color="primary">
         </app-stat-card>
         
         <app-stat-card
-          *ngIf="statistics.salaryStatistics?.averageSalary !== undefined && statistics.salaryStatistics?.averageSalary !== null"
           title="Average Salary"
-          [value]="statistics.salaryStatistics!.averageSalary!"
-          format="currency"
+          [value]="getAverageSalary()"
           icon="payments"
           color="accent">
         </app-stat-card>
