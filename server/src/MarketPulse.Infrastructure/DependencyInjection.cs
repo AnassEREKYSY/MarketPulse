@@ -14,19 +14,19 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddMemoryCache();
+
         var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "localhost";
         var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT") ?? "6379";
-        var redisConnection = configuration.GetConnectionString("Redis")
-            ?.Replace("${REDIS_HOST}", redisHost)
-            ?.Replace("${REDIS_PORT}", redisPort)
-            ?? $"{redisHost}:{redisPort}";
 
-        services.AddMemoryCache();
+        var redisConnection = configuration.GetConnectionString("Redis");
+        redisConnection = string.IsNullOrWhiteSpace(redisConnection)
+            ? $"{redisHost}:{redisPort}"
+            : redisConnection.Replace("${REDIS_HOST}", redisHost).Replace("${REDIS_PORT}", redisPort);
 
         services.AddSingleton<IConnectionMultiplexer?>(sp =>
         {
-            var logger = sp.GetRequiredService<ILoggerFactory>()
-                           .CreateLogger("Redis");
+            var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("Redis");
 
             try
             {
@@ -35,7 +35,8 @@ public static class DependencyInjection
                 options.ConnectRetry = 3;
                 options.ConnectTimeout = 3000;
 
-                return ConnectionMultiplexer.Connect(options);
+                var mux = ConnectionMultiplexer.Connect(options);
+                return mux.IsConnected ? mux : null;
             }
             catch (Exception ex)
             {
@@ -46,14 +47,10 @@ public static class DependencyInjection
 
         services.AddScoped<ICacheService>(sp =>
         {
-            var redis = sp.GetService<IConnectionMultiplexer>();
+            var mux = sp.GetService<IConnectionMultiplexer?>();
 
-            if (redis != null && redis.IsConnected)
-            {
-                return new RedisCacheService(
-                    redis,
-                    sp.GetRequiredService<ILogger<RedisCacheService>>());
-            }
+            if (mux != null && mux.IsConnected)
+                return new RedisCacheService(mux, sp.GetRequiredService<ILogger<RedisCacheService>>());
 
             return new InMemoryCacheService(
                 sp.GetRequiredService<IMemoryCache>(),
