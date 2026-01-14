@@ -56,32 +56,44 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   private fb = inject(FormBuilder);
   private cdr = inject(ChangeDetectorRef);
   
-  // Reactive form for filters
-  filterForm: FormGroup;
+  // Reactive form for all filters and search
+  filtersForm: FormGroup;
   
   @ViewChild('mapContainer', { static: false }) mapContainer!: ElementRef;
   
-  // Search and filters (for template compatibility)
-  searchQuery: string = '';
-  searchLocation: string = '';
+  // Typed getters for form values (for backward compatibility and type safety)
+  get query(): string {
+    return this.filtersForm?.get('query')?.value || '';
+  }
   
-  // Computed from form
+  get location(): string {
+    return this.filtersForm?.get('location')?.value || '';
+  }
+  
   get employmentType(): string {
-    return this.filterForm?.get('employmentType')?.value || '';
+    return this.filtersForm?.get('employmentType')?.value || '';
   }
+  
   get workMode(): string {
-    return this.filterForm?.get('workMode')?.value || '';
+    return this.filtersForm?.get('workMode')?.value || '';
   }
+  
   get experienceLevel(): string {
-    return this.filterForm?.get('experienceLevel')?.value || '';
+    return this.filtersForm?.get('experienceLevel')?.value || '';
   }
+  
   get minSalary(): number | null {
-    const value = this.filterForm?.get('minSalary')?.value;
-    return value ? Number(value) : null;
+    const value = this.filtersForm?.get('minSalary')?.value;
+    return value !== null && value !== undefined && value !== '' ? Number(value) : null;
   }
+  
   get maxSalary(): number | null {
-    const value = this.filterForm?.get('maxSalary')?.value;
-    return value ? Number(value) : null;
+    const value = this.filtersForm?.get('maxSalary')?.value;
+    return value !== null && value !== undefined && value !== '' ? Number(value) : null;
+  }
+  
+  get mapType(): 'jobs' | 'salary' {
+    return this.filtersForm?.get('mapType')?.value || 'jobs';
   }
   
   // Data
@@ -109,7 +121,6 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   // Map
   private map: L.Map | null = null;
   private markers: (L.CircleMarker | L.Marker)[] = [];
-  mapType: 'jobs' | 'salary' = 'jobs';
   
   // Filter options
   employmentTypes = ['CDI', 'CDD', 'Freelance', 'Internship', 'Other'];
@@ -134,30 +145,61 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   hasSearched = false;
   
   constructor() {
-    // Initialize reactive form
-    this.filterForm = this.fb.group({
+    // Initialize reactive form with all filters and search fields
+    this.filtersForm = this.fb.group({
+      query: [''],
+      location: [''],
       employmentType: [''],
       workMode: [''],
       experienceLevel: [''],
       minSalary: [null],
-      maxSalary: [null]
+      maxSalary: [null],
+      mapType: ['jobs' as 'jobs' | 'salary']
     });
   }
   
   ngOnInit() {
     // Don't load anything initially - just show search UI
     
-    // Subscribe to filter changes with debouncing
-    this.filterForm.valueChanges
+    // Subscribe to filter changes with debouncing (excluding query and location which trigger search)
+    this.filtersForm.valueChanges
       .pipe(
         debounceTime(250), // 250ms debounce for smooth UX
         distinctUntilChanged((prev, curr) => {
-          return JSON.stringify(prev) === JSON.stringify(curr);
+          // Only debounce filter changes, not search query/location
+          const prevFilters = {
+            employmentType: prev.employmentType,
+            workMode: prev.workMode,
+            experienceLevel: prev.experienceLevel,
+            minSalary: prev.minSalary,
+            maxSalary: prev.maxSalary,
+            mapType: prev.mapType
+          };
+          const currFilters = {
+            employmentType: curr.employmentType,
+            workMode: curr.workMode,
+            experienceLevel: curr.experienceLevel,
+            minSalary: curr.minSalary,
+            maxSalary: curr.maxSalary,
+            mapType: curr.mapType
+          };
+          return JSON.stringify(prevFilters) === JSON.stringify(currFilters);
         })
       )
-      .subscribe(() => {
+      .subscribe((formValue) => {
+        // If query or location changed, don't auto-apply filters (user needs to click search)
+        // Only auto-apply if we already have search results
         if (this.hasSearched && this.allJobs.length > 0) {
-          this.applyClientSideFilters();
+          // Check if only filters changed (not query/location)
+          const queryChanged = formValue.query !== this.query || formValue.location !== this.location;
+          if (!queryChanged) {
+            this.applyClientSideFilters();
+          }
+        }
+        
+        // Handle mapType change separately
+        if (formValue.mapType !== this.mapType && this.hasSearched && this.filteredJobs.length > 0) {
+          this.onMapTypeChange();
         }
       });
   }
@@ -230,8 +272,12 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   
   
   onSearch() {
+    // Get values from reactive form
+    const query = this.query;
+    const location = this.location;
+    
     // If no search query or location, clear results
-    if (!this.searchQuery && !this.searchLocation) {
+    if (!query && !location) {
       this.searchResults = null;
       this.allJobs = [];
       this.filteredJobs = [];
@@ -253,8 +299,8 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     // Fetch ALL jobs without filters (backend will only filter by query/location)
     // We'll do client-side filtering for better performance
     this.jobsService.searchJobs({
-      query: this.searchQuery || undefined,
-      location: this.searchLocation || undefined,
+      query: query || undefined,
+      location: location || undefined,
       // Don't send filters - we'll filter client-side
       fetchAll: true // Fetch all results
     }).subscribe({
@@ -714,11 +760,10 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   }
   
   clearFilters() {
-    this.searchQuery = '';
-    this.searchLocation = '';
-    
-    // Reset reactive form
-    this.filterForm.patchValue({
+    // Reset reactive form (all fields except mapType)
+    this.filtersForm.patchValue({
+      query: '',
+      location: '',
       employmentType: '',
       workMode: '',
       experienceLevel: '',
@@ -752,6 +797,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
       // Update map immediately when type changes (fast, no geocoding needed)
       // Markers already exist, just need to recalculate colors
       this.updateMapWithJobLocations();
+      this.cdr.markForCheck();
     }
   }
   
