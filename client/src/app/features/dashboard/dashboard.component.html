@@ -38,11 +38,11 @@
       </div>
       
       <!-- Filters -->
-      <div class="filters-container">
+      <div class="filters-container" [formGroup]="filterForm">
         <div class="filters-grid">
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Employment Type</mat-label>
-            <mat-select [(ngModel)]="employmentType" (selectionChange)="onFilterChange()">
+            <mat-select formControlName="employmentType">
               <mat-option value="">All Types</mat-option>
               <mat-option *ngFor="let type of employmentTypes" [value]="type">{{ type }}</mat-option>
             </mat-select>
@@ -50,7 +50,7 @@
           
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Work Mode</mat-label>
-            <mat-select [(ngModel)]="workMode" (selectionChange)="onFilterChange()">
+            <mat-select formControlName="workMode">
               <mat-option value="">All Modes</mat-option>
               <mat-option *ngFor="let mode of workModes" [value]="mode">{{ mode }}</mat-option>
             </mat-select>
@@ -58,7 +58,7 @@
           
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Experience Level</mat-label>
-            <mat-select [(ngModel)]="experienceLevel" (selectionChange)="onFilterChange()">
+            <mat-select formControlName="experienceLevel">
               <mat-option value="">All Levels</mat-option>
               <mat-option *ngFor="let level of experienceLevels" [value]="level">{{ level }}</mat-option>
             </mat-select>
@@ -66,12 +66,12 @@
           
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Min Salary (EUR/year)</mat-label>
-            <input matInput type="number" [(ngModel)]="minSalary" (keyup)="onFilterChange()" (blur)="onFilterChange()" placeholder="e.g., 30000">
+            <input matInput type="number" formControlName="minSalary" placeholder="e.g., 30000">
           </mat-form-field>
           
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Max Salary (EUR/year)</mat-label>
-            <input matInput type="number" [(ngModel)]="maxSalary" (keyup)="onFilterChange()" (blur)="onFilterChange()" placeholder="e.g., 100000">
+            <input matInput type="number" formControlName="maxSalary" placeholder="e.g., 100000">
           </mat-form-field>
           
           <button mat-button (click)="clearFilters()" class="clear-button">
@@ -233,7 +233,7 @@
         </mat-card-header>
         <mat-card-content>
           <div class="companies-grid">
-            <mat-card *ngFor="let company of displayedCompanies" class="company-card">
+            <mat-card *ngFor="let company of displayedCompanies; trackBy: trackByCompanyId" class="company-card">
               <mat-card-header>
                 <div class="company-header">
                   <mat-icon class="company-icon">business</mat-icon>
@@ -277,7 +277,7 @@
         </mat-card-header>
         <mat-card-content>
           <div class="jobs-list">
-            <mat-card *ngFor="let job of displayedJobs" class="job-card">
+            <mat-card *ngFor="let job of displayedJobs; trackBy: trackByJobId" class="job-card">
               <mat-card-header>
                 <mat-card-title>{{ job.title }}</mat-card-title>
                 <mat-card-subtitle>

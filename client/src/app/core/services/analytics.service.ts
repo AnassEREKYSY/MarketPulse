@@ -137,8 +137,8 @@ export class AnalyticsService {
       return undefined;
     }
     
-    // Sort by experience level order (Junior, Mid, Senior, Lead, Any)
-    const experienceOrder = ['Junior', 'Mid', 'Senior', 'Lead', 'Any'];
+    // Sort by experience level order (Junior, Mid, Senior, Lead, Not specified)
+    const experienceOrder = ['Junior', 'Mid', 'Senior', 'Lead', 'Not specified'];
     const sorted = entries.sort(([keyA], [keyB]) => {
       const indexA = experienceOrder.indexOf(keyA);
       const indexB = experienceOrder.indexOf(keyB);

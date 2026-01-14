@@ -330,7 +330,7 @@
   padding: 48px 24px;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   min-height: 100vh;
-  scroll-margin-top: 80px; // For smooth scrolling
+  scroll-margin-top: 80px; // CSS-only scroll positioning (no JS)
   
   .container {
     max-width: 1440px;
@@ -905,6 +905,17 @@
   .stats-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+  
+  .skeleton-loaders {
+    .skeleton-stats,
+    .skeleton-charts {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  .charts-grid {
+    grid-template-columns: 1fr !important;
   }
   
   .chart-card {

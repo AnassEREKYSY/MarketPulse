@@ -206,7 +206,13 @@ export function calculateAverageSalaryByExperience(
   const grouped = new Map<string, number[]>();
   
   jobsWithSalary.forEach(job => {
-    const level = job.experienceLevel?.trim() || 'Unknown';
+    let level = job.experienceLevel?.trim() || '';
+    
+    // Normalize labels for clarity
+    if (!level || level.toLowerCase() === 'any' || level.toLowerCase() === 'unknown') {
+      level = 'Not specified';
+    }
+    
     if (!grouped.has(level)) {
       grouped.set(level, []);
     }
@@ -237,7 +243,17 @@ export function calculateDistributionCounts(
   const counts: Record<string, number> = {};
   
   jobs.forEach(job => {
-    const value = job[field]?.trim() || 'Unknown';
+    let value = job[field]?.trim() || '';
+    
+    // Normalize labels for clarity
+    if (!value || value.toLowerCase() === 'any' || value.toLowerCase() === 'unknown') {
+      if (field === 'experienceLevel') {
+        value = 'Not specified';
+      } else {
+        value = 'Not specified';
+      }
+    }
+    
     counts[value] = (counts[value] || 0) + 1;
   });
   

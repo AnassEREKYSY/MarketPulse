@@ -37,7 +37,17 @@ export class ChartComponent implements OnInit, OnChanges {
 
   private updateChart() {
     if (!this.config) {
-      this.chartOptions = {};
+      this.chartOptions = {
+        title: {
+          text: 'No data available',
+          left: 'center',
+          top: 'center',
+          textStyle: {
+            color: '#94a3b8',
+            fontSize: 16
+          }
+        }
+      };
       return;
     }
 
