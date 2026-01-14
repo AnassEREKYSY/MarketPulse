@@ -2,6 +2,7 @@ import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
+import { formatSalary, formatNumber, formatCurrency, isValidSalary, isValidNumber } from '../../../core/utils/format.utils';
 
 @Component({
   selector: 'app-stat-card',
@@ -23,14 +24,21 @@ export class StatCardComponent {
       return this.value;
     }
     
-    if (this.format === 'currency') {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'EUR',
-        maximumFractionDigits: 0
-      }).format(this.value);
+    // Handle invalid numbers
+    if (!isValidNumber(this.value)) {
+      return this.format === 'currency' ? '0 euros' : '0';
     }
-    return this.value.toLocaleString();
+    
+    // Format based on type
+    if (this.format === 'currency') {
+      // For currency, use formatSalary which handles "Insufficient data"
+      if (!isValidSalary(this.value)) {
+        return 'Insufficient data';
+      }
+      return formatCurrency(this.value);
+    }
+    
+    return formatNumber(this.value);
   }
 }
 
