@@ -42,7 +42,8 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
             "buildTarget": "marketpulse:build",
-            "port": 4200
+            "port": 4200,
+            "proxyConfig": "proxy.conf.json"
           }
         }
       }
