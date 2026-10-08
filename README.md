@@ -1,246 +1,87 @@
-# MarketPulse Jobs – Job Market Intelligence Platform
+# MarketPulse
 
-A production-ready full-stack application that aggregates public job market data from external APIs, processes and normalizes the data, caches results with Redis, and presents high-quality analytics, charts, and interactive maps through a modern professional UI.
+Job market intelligence from live job ads. Pick a skill or job title, a location and one of 19 countries, and MarketPulse shows how big the market is, what it pays, how much of it is remote, who is hiring and where.
 
-## 🏗️ Architecture
+Live: https://marketpulse.anasserekysy.com
 
-### Backend (.NET 8 - Clean Architecture)
+![Overview](docs/screenshots/overview.png)
 
-The backend follows Clean Architecture principles with clear separation of concerns:
+## Features
 
-- **Domain Layer**: Pure business logic with entities, value objects, and enums
-- **Application Layer**: CQRS pattern with MediatR, DTOs, and query handlers
-- **Infrastructure Layer**: External API integrations, Redis caching, PostgreSQL database
-- **API Layer**: RESTful endpoints with Swagger documentation
+**Overview.** Open jobs, new ads this week, median salary with the middle 50%, remote and hybrid share, the salary distribution of every matching ad, top recruiters, ads per region, contract and seniority mix, and the latest ads.
 
-### Frontend (Angular 19)
+**Jobs.** The ads themselves, with filters for date, remote or hybrid, contract, hours, minimum salary and category, real pagination, and a link to each original ad.
 
-Modern Angular application with:
-- Standalone components
-- Feature-based architecture
-- Angular Material for professional UI
-- ECharts for data visualization
-- Leaflet for interactive maps
+**Compare skills.** Put 2 to 4 skills or job titles side by side (for example .NET, Java, Node.js and Python): open jobs, salary ranges on one scale, remote share, top region and top recruiter.
 
-## 🚀 Quick Start
+![Compare skills](docs/screenshots/compare.png)
 
-### Prerequisites
+**Salary explorer.** Percentiles (25th, median, 75th, top 10%), the full distribution, 12 months of salary history for the job category, and medians by seniority, by region and by recruiter.
 
-- .NET 8 SDK
-- Node.js 20+
-- Docker and Docker Compose
-- PostgreSQL 15+ (or use Docker)
-- Redis 7+ (or use Docker)
+![Salary explorer](docs/screenshots/salaries.png)
 
-### Using Docker Compose (Recommended)
+**Countries.** The same search in up to 6 of the 19 markets Adzuna covers, with salaries converted to euros.
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd MarketPulse
+![Countries](docs/screenshots/countries.png)
+
+**Map.** Where the ads are, on a dark map, with the count per region.
+
+Every chart has a text or table equivalent, the search lives in the URL (any view can be shared), and the layout works on phones.
+
+<img src="docs/screenshots/mobile.png" alt="Mobile" width="300" />
+
+## How it works
+
+```
+client/                       Angular 19 app (pages, shared charts, core services)
+client/e2e/                   Playwright tests (API mocked in e2e/mock-api.ts)
+server/src/MarketPulse.Domain           Job model, classifiers (remote, seniority), statistics
+server/src/MarketPulse.Application      Use cases per screen, ports (IJobMarket, ICache), DTOs
+server/src/MarketPulse.Infrastructure   Adzuna client, quota guard, memory + disk cache
+server/src/MarketPulse.Api              Minimal API endpoints, serves the Angular build
+server/tests/MarketPulse.Tests          xUnit tests
+deploy/                       docker-compose.prod.yml, deploy.sh, nginx site
+Dockerfile                    client build + API publish + runtime image
 ```
 
-2. Configure API keys and credentials:
-   - Copy `.env.example` to `.env`:
-     ```bash
-     cp .env.example .env
-     ```
-   - Edit `.env` and fill in your actual credentials:
-     ```env
-     ADZUNA_APP_ID=your-adzuna-app-id
-     ADZUNA_APP_KEY=your-adzuna-app-key
-     JSEARCH_API_KEY=your-rapidapi-key
-     ```
-   - **Important**: The `.env` file is gitignored and will not be committed to version control.
+- **Data:** the [Adzuna API](https://developer.adzuna.com/) (search, salary histogram, salary history, regions, top companies, categories).
+- **Quota-aware:** Adzuna's free plan allows about 250 calls a day. Every answer is cached in memory and on disk (a Docker volume, so it survives redeploys), screens share their provider calls, identical requests in flight are merged, and a guard refuses new calls before the limit is hit. When the provider is down or the limit is reached, older cached answers are served instead of an error.
+- **Honest numbers:** percentiles come from the histogram of all matching ads; remote share, seniority and contract mix come from the 50 most relevant ads and are labelled that way. Adzuna's estimated salaries are marked as estimates.
+- **Stack:** .NET 8 minimal APIs with no NuGet packages, Angular 19 with signals, Tailwind CSS, Leaflet. Charts are plain HTML/SVG components.
 
-3. Start all services:
+## Run locally
+
 ```bash
-docker-compose up -d
-```
-
-4. Access the application:
-- Frontend: http://localhost:4200
-- API: http://localhost:5190
-- Swagger: http://localhost:5190/swagger
-
-### Manual Setup
-
-#### Backend
-
-1. Navigate to the server directory:
-```bash
+# API (http://localhost:8080)
 cd server
+export ADZUNA_APP_ID=... ADZUNA_APP_KEY=...
+dotnet run --project src/MarketPulse.Api
+
+# Client (http://localhost:4200)
+cd client && npm install && npm start
 ```
 
-2. Restore dependencies:
+Tests:
+
 ```bash
-dotnet restore
+cd server && dotnet test
+cd client && npx playwright install chromium && npm run e2e
 ```
 
-3. Configure environment variables:
-   - Copy `.env.example` to `.env`
-   - Fill in your API keys and database credentials in `.env`
+## API
 
-4. Run database migrations:
-```bash
-cd src/MarketPulse.API
-dotnet ef database update
-```
+All routes are `GET` under `/api` and answer JSON; errors are `{ "error": "message" }`.
 
-5. Run the API:
-```bash
-dotnet run --project src/MarketPulse.API
-```
+| Route | Parameters |
+| --- | --- |
+| `health` | Shows whether Adzuna is configured and the calls used today |
+| `countries` | The 19 supported markets |
+| `categories` | `country` |
+| `overview`, `salaries`, `map` | `country`, `what`, `where` |
+| `jobs` | `country`, `what`, `where`, `page`, `pageSize` (max 50), `sort` (relevance, date, salary), `maxDaysOld`, `salaryMin`, `contract` (permanent, contract), `time` (fulltime, parttime), `workMode` (remote, hybrid), `category` |
+| `compare` | `country`, `where`, `q` (2 to 4 times) |
+| `countries/compare` | `what`, `codes` (2 to 6 comma-separated country codes) |
 
-#### Frontend
+Deployment: see [DEPLOYMENT.md](DEPLOYMENT.md). Design notes: [client/DESIGN.md](client/DESIGN.md).
 
-1. Navigate to the client directory:
-```bash
-cd client
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Update API URL in `src/app/core/services/jobs.service.ts` if needed
-
-4. Run the development server:
-```bash
-npm start
-```
-
-## 📊 Features
-
-### Dashboard
-- Real-time job market statistics
-- Visual breakdowns by employment type, work mode, and experience level
-- Top companies and locations
-
-### Job Search
-- Advanced filtering (location, employment type, work mode, experience, salary)
-- Paginated results
-- Direct links to job postings
-
-### Analytics
-- Salary analytics by experience level and location
-- Hiring trends over time
-- Salary trends visualization
-
-### Heat Maps
-- Interactive job density heatmap
-- Salary heatmap by location
-- Geographic visualization with Leaflet
-
-## 🔌 External APIs
-
-The application integrates with the following free/limited APIs:
-
-1. **Adzuna Jobs API** (Primary)
-   - Free tier available
-   - Sign up at: https://developer.adzuna.com/
-
-2. **JSearch API (RapidAPI)** (Fallback)
-   - Free tier available
-   - Sign up at: https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
-
-3. **OpenStreetMap Nominatim** (Geocoding)
-   - Free and open-source
-   - No API key required
-
-## 🗄️ Database Schema
-
-- **JobOffers**: Normalized job postings
-- **Companies**: Company information
-- **Locations**: Geographic data with coordinates
-
-## 🔄 Caching Strategy
-
-- **Job Search Results**: 6 hours TTL
-- **Analytics & Statistics**: 24 hours TTL
-- **Heatmap Data**: 24 hours TTL
-
-## 📁 Project Structure
-
-```
-/marketpulse-jobs
-├── server/
-│   └── src/
-│       ├── MarketPulse.API/
-│       ├── MarketPulse.Application/
-│       ├── MarketPulse.Domain/
-│       └── MarketPulse.Infrastructure/
-├── client/
-│   └── src/
-│       └── app/
-│           ├── core/
-│           ├── features/
-│           ├── shared/
-│           └── layout/
-├── docker-compose.yml
-└── README.md
-```
-
-## 🛠️ Technology Stack
-
-### Backend
-- .NET 8
-- Entity Framework Core
-- PostgreSQL
-- Redis
-- MediatR (CQRS)
-- AutoMapper
-- Swagger/OpenAPI
-
-### Frontend
-- Angular 19
-- Angular Material
-- ECharts (via ngx-echarts)
-- Leaflet
-- RxJS
-- TypeScript
-
-## 📝 API Endpoints
-
-- `GET /api/jobs/search` - Search jobs with filters
-- `GET /api/jobs/statistics` - Get job market statistics
-- `GET /api/jobs/salaries` - Get salary analytics
-- `GET /api/jobs/heatmap` - Get heatmap data
-- `GET /api/jobs/trends` - Get hiring and salary trends
-
-## 🎨 Design Principles
-
-- **Clean Architecture**: Separation of concerns, dependency inversion
-- **CQRS**: Command Query Responsibility Segregation
-- **Repository Pattern**: Data access abstraction
-- **Dependency Injection**: Loose coupling
-- **Professional UI**: Enterprise-grade design, not experimental
-
-## 🔒 Security Considerations
-
-- API keys stored in configuration (use environment variables in production)
-- CORS configured for Angular frontend
-- Input validation on all endpoints
-- SQL injection protection via EF Core parameterized queries
-
-## 🚧 Future Enhancements
-
-- User authentication and personalized dashboards
-- Job alerts and notifications
-- Export data to CSV/PDF
-- Advanced filtering and saved searches
-- Real-time updates via SignalR
-- Machine learning for salary predictions
-
-## 📄 License
-
-This project is for portfolio/demonstration purposes.
-
-## 👤 Author
-
-Built as a portfolio project demonstrating enterprise-level full-stack development skills.
-
----
-
-**Note**: This application uses free-tier APIs with rate limits. For production use, consider upgrading to paid tiers or implementing additional data sources.
+Job data: Jobs by [Adzuna](https://www.adzuna.com).

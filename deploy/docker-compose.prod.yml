@@ -1,0 +1,30 @@
+# MarketPulse on the VM. deploy.sh writes .env next to this file.
+name: marketpulse
+
+services:
+  marketpulse:
+    image: ghcr.io/anasserekysy/marketpulse:${IMAGE_TAG:-latest}
+    container_name: marketpulse
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:?ADZUNA_APP_ID is missing}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:?ADZUNA_APP_KEY is missing}
+      ADZUNA_DAILY_LIMIT: ${ADZUNA_DAILY_LIMIT:-240}
+      CACHE_DIR: /data/cache
+    volumes:
+      - marketpulse_data:/data
+    # Only the reverse proxy (web network) and the health check on localhost reach it.
+    ports:
+      - "${MARKETPULSE_BIND:-127.0.0.1:5310}:8080"
+    networks: [web]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  marketpulse_data:
+
+networks:
+  web:
+    external: true
