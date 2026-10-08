@@ -89,6 +89,7 @@ public sealed partial class AdzunaJobMarket(HttpClient http, AdzunaOptions optio
         req.Headers.Accept.ParseAdd("application/json");
 
         HttpResponseMessage res;
+        using var turn = await quota.TurnAsync(ct);
         try { res = await http.SendAsync(req, ct); }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested) { throw new MarketException(504, "The job data provider took too long to answer. Please try again."); }
         catch (HttpRequestException e)
@@ -104,6 +105,8 @@ public sealed partial class AdzunaJobMarket(HttpClient http, AdzunaOptions optio
             {
                 // Never log the URL: it contains the API key.
                 log.LogWarning("Adzuna {Status} on {Path}: {Body}", (int)res.StatusCode, path, body.Length > 300 ? body[..300] : body);
+                if (res.StatusCode == HttpStatusCode.TooManyRequests)
+                    quota.CoolDown(res.Headers.RetryAfter?.Delta is { } ra && ra > TimeSpan.Zero ? ra : TimeSpan.FromSeconds(15));
                 throw res.StatusCode switch
                 {
                     HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => new MarketException(502, "The job data provider refused the API key. Check ADZUNA_APP_ID and ADZUNA_APP_KEY."),
