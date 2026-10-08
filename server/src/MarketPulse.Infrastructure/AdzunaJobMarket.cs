@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using MarketPulse.Application;
@@ -100,7 +101,15 @@ public sealed partial class AdzunaJobMarket(HttpClient http, AdzunaOptions optio
 
         using (res)
         {
-            var body = await res.Content.ReadAsStringAsync(ct);
+            // Adzuna's Content-Type carries a charset name .NET does not know, which makes ReadAsStringAsync throw.
+            // The body is UTF-8 JSON: decode the bytes ourselves.
+            string body;
+            try { body = Encoding.UTF8.GetString(await res.Content.ReadAsByteArrayAsync(ct)); }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                log.LogWarning("Adzuna answer for {Path} could not be read: {Error}", path, Redact(e.Message));
+                throw new MarketException(503, "The job data provider sent an unreadable answer. Please try again.");
+            }
             if (!res.IsSuccessStatusCode)
             {
                 // Never log the URL: it contains the API key.

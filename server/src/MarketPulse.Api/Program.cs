@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Diagnostics;
 var builder = WebApplication.CreateBuilder(args);
 // HttpClient logs full request URLs at Information level, and Adzuna takes its key in the URL: keep those logs off.
 builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
+// Same-origin requests carry an Origin header that is not in the dev CORS list: harmless, but noisy at Information.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Cors", LogLevel.Warning);
 builder.WebHost.ConfigureKestrel(o => o.ListenAnyIP(int.TryParse(builder.Configuration["PORT"], out var p) ? p : 8080));
 
 var adzuna = AdzunaOptions.FromEnvironment(k => builder.Configuration[k]);
