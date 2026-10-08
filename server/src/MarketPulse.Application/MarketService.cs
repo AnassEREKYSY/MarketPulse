@@ -19,10 +19,10 @@ public sealed class MarketService(IJobMarket market, ICache cache)
     {
         var c = CountryOf(country); what = Clean(what); where = Clean(where);
         var relevant = Search(new(c.Code, what, where, 1, Sample), ct);
-        var recent = Search(new(c.Code, what, where, 1, 10, SortBy.Date, MaxDaysOld: 7), ct);
-        var histogram = Histogram(c.Code, what, where, ct);
-        var regions = Regions(c.Code, what, where, ct);
-        var companies = Companies(c.Code, what, where, ct);
+        var recent = Optional(Search(new(c.Code, what, where, 1, 10, SortBy.Date, MaxDaysOld: 7), ct), new SearchPage(0, null, []));
+        var histogram = Optional(Histogram(c.Code, what, where, ct), []);
+        var regions = Optional(Regions(c.Code, what, where, ct), []);
+        var companies = Optional(Companies(c.Code, what, where, ct), []);
         await Task.WhenAll(relevant, recent, histogram, regions, companies);
 
         var sample = relevant.Result.Jobs;
@@ -70,7 +70,7 @@ public sealed class MarketService(IJobMarket market, ICache cache)
         var items = await Task.WhenAll(list.Select(async q =>
         {
             var search = Search(new(c.Code, q, where, 1, Sample), ct);
-            var histogram = Histogram(c.Code, q, where, ct);
+            var histogram = Optional(Histogram(c.Code, q, where, ct), []);
             await Task.WhenAll(search, histogram);
             var sample = search.Result.Jobs;
             return new CompareItem(q, search.Result.Count, Summary(search.Result.MeanSalary, histogram.Result, sample),
@@ -89,9 +89,9 @@ public sealed class MarketService(IJobMarket market, ICache cache)
     {
         var c = CountryOf(country); what = Clean(what); where = Clean(where);
         var page1 = Search(new(c.Code, what, where, 1, Sample), ct);
-        var page2 = Search(new(c.Code, what, where, 2, Sample), ct);
-        var histogram = Histogram(c.Code, what, where, ct);
-        var companies = Companies(c.Code, what, where, ct);
+        var page2 = Optional(Search(new(c.Code, what, where, 2, Sample), ct), new SearchPage(0, null, []));
+        var histogram = Optional(Histogram(c.Code, what, where, ct), []);
+        var companies = Optional(Companies(c.Code, what, where, ct), []);
         await Task.WhenAll(page1, page2, histogram, companies);
 
         var sample = page1.Result.Jobs.Concat(page2.Result.Jobs).DistinctBy(j => j.Id).ToList();
@@ -100,8 +100,8 @@ public sealed class MarketService(IJobMarket market, ICache cache)
         // Salary history only exists per category: use the category most of these ads belong to.
         var category = sample.Where(j => j.CategoryTag is not null).GroupBy(j => j.CategoryTag!)
             .OrderByDescending(g => g.Count()).FirstOrDefault();
-        var history = category is null ? [] : await Cached($"history:{c.Code}:{category.Key}:{Key(where)}", HistoryTtl,
-            t => market.SalaryHistoryAsync(c.Code, category.Key, where, 12, t), ct);
+        var history = category is null ? [] : await Optional(Cached($"history:{c.Code}:{category.Key}:{Key(where)}", HistoryTtl,
+            t => market.SalaryHistoryAsync(c.Code, category.Key, where, 12, t), ct), []);
 
         return new SalariesDto(c.Code, c.Currency, what, where,
             Summary(page1.Result.MeanSalary, histogram.Result, paid), histogram.Result,
@@ -139,8 +139,8 @@ public sealed class MarketService(IJobMarket market, ICache cache)
     {
         var c = CountryOf(country); what = Clean(what); where = Clean(where);
         var page1 = Search(new(c.Code, what, where, 1, Sample), ct);
-        var page2 = Search(new(c.Code, what, where, 2, Sample), ct);
-        var regions = Regions(c.Code, what, where, ct);
+        var page2 = Optional(Search(new(c.Code, what, where, 2, Sample), ct), new SearchPage(0, null, []));
+        var regions = Optional(Regions(c.Code, what, where, ct), []);
         await Task.WhenAll(page1, page2, regions);
 
         var sample = page1.Result.Jobs.Concat(page2.Result.Jobs).DistinctBy(j => j.Id).ToList();
@@ -174,6 +174,13 @@ public sealed class MarketService(IJobMarket market, ICache cache)
 
     Task<List<CompanyStat>> Companies(string c, string? what, string? where, CancellationToken ct) =>
         Cached($"companies:{c}:{Key(what)}:{Key(where)}", AggregateTtl, t => market.TopCompaniesAsync(c, what, where, t), ct);
+
+    /// <summary>Secondary data (charts around the main numbers): if the provider fails, show the page without it.</summary>
+    static async Task<T> Optional<T>(Task<T> task, T fallback)
+    {
+        try { return await task; }
+        catch (MarketException e) when (e.Status is 400 or 429 or 503 or 504) { return fallback; }
+    }
 
     Task<T> Cached<T>(string key, TimeSpan ttl, Func<CancellationToken, Task<T>> factory, CancellationToken ct) =>
         cache.GetOrCreateAsync(key, ttl, factory, ct);
