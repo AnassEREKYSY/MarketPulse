@@ -1,229 +1,63 @@
-# Deployment Guide
+# Deployment
 
-This guide explains how to set up CI/CD for MarketPulse using GitHub Actions and deploy to OVH VM.
+Every push to `main` runs `.github/workflows/ci-cd.yml`:
 
-## Prerequisites
+1. **API**: `dotnet build` and `dotnet test`.
+2. **Client**: production build and Playwright end-to-end tests.
+3. **Image**: builds the root `Dockerfile` and pushes `ghcr.io/anasserekysy/marketpulse:latest` and `:<commit sha>`. Pull requests only build it.
+4. **Deploy**: copies `deploy/docker-compose.prod.yml` and `deploy/deploy.sh` to `~/marketpulse` on the VM and runs `deploy.sh`.
 
-1. **GitHub Repository**: Your code should be in a GitHub repository
-2. **OVH VM**: A virtual machine on OVH with:
-   - Docker installed
-   - Docker Compose installed
-   - SSH access configured
-   - Ports 4200 (client) and 5190 (API) open
+## What runs on the VM
 
-## Setup Instructions
+One container, `marketpulse`, on the `web` network, published on `127.0.0.1:5310` (only for the health check). It serves the app and the API (`/api/...`). A Docker volume (`marketpulse_data`) keeps the cache across redeploys, so the Adzuna quota is not spent again after each deploy.
 
-### 1. GitHub Secrets Configuration
+`deploy.sh`:
 
-Go to your GitHub repository → Settings → Secrets and variables → Actions, and add the following secrets:
+- saves the settings to `~/marketpulse/.env` (mode 600). A setting that is not provided keeps its saved value, so **the Adzuna keys already in `~/marketpulse/.env` from the old setup are reused**;
+- pulls the new image first (the running version stays up if the pull fails);
+- removes the old `marketpulse-nginx`, `marketpulse-api`, `marketpulse-client` and `marketpulse-redis` containers, then starts the new one;
+- waits for `/api/health`, then runs `nginx -t` and reloads the `reverse-proxy` container.
 
-#### Required Secrets:
-- `OVH_SSH_PRIVATE_KEY`: Your private SSH key for accessing the OVH VM
-- `OVH_HOST`: The IP address or hostname of your OVH VM
-- `OVH_USER`: The SSH username for your OVH VM (usually `root` or `ubuntu`)
-- `GUSERNAME`: Your GitHub username (for GHCR authentication)
-- `GHCR_TOKEN`: A GitHub Personal Access Token with `write:packages` permission
+## GitHub settings
 
-#### Creating a GitHub Personal Access Token:
-1. Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-2. Click "Generate new token (classic)"
-3. Select scopes: `write:packages`, `read:packages`
-4. Generate and copy the token
-5. Add it as `GHCR_TOKEN` secret
+| Secret | Use |
+| --- | --- |
+| `OVH_HOST`, `OVH_USER`, `OVH_SSH_PRIVATE_KEY` | SSH access to the VM (already set for the old pipeline; `SSH_PRIVATE_KEY` also works) |
+| `GHCR_TOKEN` | Token with `write:packages`, used to push the image and to pull it on the VM |
+| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Optional if they are already in `~/marketpulse/.env` on the VM |
 
-### 2. OVH VM Setup
+Optional variable `MARKETPULSE_BIND` (default `127.0.0.1:5310`) changes the host port.
 
-#### Install Docker and Docker Compose:
+## Domain and HTTPS (once)
+
+The old setup started its own Nginx on port 443, which clashes with the `reverse-proxy` container. The site now goes through `reverse-proxy` like the other apps, with its own certificate (webroot method, same as Skinet).
+
+1. DNS: add an `A` record `marketpulse` pointing to the VM IP, and wait until `dig +short marketpulse.anasserekysy.com` returns it.
+2. HTTP site for the certificate challenge:
+   ```bash
+   cd /opt/nginx/conf.d
+   sudo curl -fsSL https://raw.githubusercontent.com/AnassEREKYSY/MarketPulse/main/deploy/nginx/marketpulse-http-only.conf -o marketpulse.conf
+   docker exec reverse-proxy nginx -t && docker exec reverse-proxy nginx -s reload
+   ```
+3. Certificate:
+   ```bash
+   sudo certbot certonly --webroot -w /etc/letsencrypt/acme-webroot -d marketpulse.anasserekysy.com
+   ```
+4. Full site:
+   ```bash
+   sudo curl -fsSL https://raw.githubusercontent.com/AnassEREKYSY/MarketPulse/main/deploy/nginx/marketpulse.conf -o /opt/nginx/conf.d/marketpulse.conf
+   docker exec reverse-proxy nginx -t && docker exec reverse-proxy nginx -s reload
+   curl -fsS https://marketpulse.anasserekysy.com/api/health
+   ```
+
+## Adzuna limits
+
+The free plan allows about 25 calls a minute and 250 a day. MarketPulse stops at 240 a day by default (`ADZUNA_DAILY_LIMIT` in `.env`). One new search costs about 5 calls for the overview, and most other screens reuse them. `/api/health` shows the calls used today.
+
+## Manual deploy or rollback
+
 ```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-
-# Add user to docker group (if not root)
-sudo usermod -aG docker $USER
-```
-
-#### Configure Firewall:
-```bash
-# Allow ports 4200 (client) and 5190 (API)
-sudo ufw allow 4200/tcp
-sudo ufw allow 5190/tcp
-sudo ufw allow 22/tcp  # SSH
-sudo ufw enable
-```
-
-#### Create Deployment Directory:
-```bash
-mkdir -p ~/marketpulse
 cd ~/marketpulse
+IMAGE_TAG=<commit sha> ./deploy.sh
+docker compose -f docker-compose.prod.yml logs -f
 ```
-
-### 3. Initial Deployment
-
-#### Option A: Manual Deployment (First Time)
-
-1. **Copy deployment files to OVH VM:**
-```bash
-scp deploy.sh docker-compose.prod.yml your-user@your-ovh-vm:~/marketpulse/
-```
-
-2. **SSH into OVH VM:**
-```bash
-ssh your-user@your-ovh-vm
-cd ~/marketpulse
-```
-
-3. **Set environment variables:**
-```bash
-export GITHUB_OWNER="your-github-username"
-export GUSERNAME="your-github-username"
-export GHCR_TOKEN="your-github-token"
-```
-
-4. **Create .env file:**
-```bash
-cat > .env << EOF
-ASPNETCORE_ENVIRONMENT=Production
-REDIS_HOST=redis
-REDIS_PORT=6379
-ADZUNA_APP_ID=your_app_id_here
-ADZUNA_APP_KEY=your_app_key_here
-GITHUB_OWNER=your-github-username
-EOF
-```
-
-5. **Run deployment:**
-```bash
-chmod +x deploy.sh
-./deploy.sh
-```
-
-#### Option B: Automated Deployment via GitHub Actions
-
-Once secrets are configured, the deployment will happen automatically on push to `main` or `master` branch.
-
-### 4. CI/CD Workflow
-
-The CI/CD pipeline consists of two workflows:
-
-#### `ci-cd.yml` (Build and Push)
-- Triggers on push to `main`, `master`, or `develop`
-- Builds Docker images for API and Client
-- Pushes images to GitHub Container Registry (GHCR)
-- Tags images with branch name, SHA, and `latest` (for main branch)
-
-#### `deploy-ovh.yml` (Deploy)
-- Triggers on push to `main` or `master`
-- Copies deployment files to OVH VM
-- Runs deployment script on OVH VM
-- Pulls latest images from GHCR
-- Starts containers using docker-compose
-
-### 5. Image Naming Convention
-
-Images are pushed to GHCR with the following naming:
-- API: `ghcr.io/OWNER/marketpulse-api:latest`
-- Client: `ghcr.io/OWNER/marketpulse-client:latest`
-
-Replace `OWNER` with your GitHub username or organization name.
-
-### 6. Updating docker-compose.prod.yml
-
-Make sure to update the `GITHUB_OWNER` variable in `docker-compose.prod.yml`:
-
-```yaml
-api:
-  image: ghcr.io/YOUR_USERNAME/marketpulse-api:latest
-```
-
-Or use environment variable:
-```yaml
-api:
-  image: ghcr.io/${GITHUB_OWNER}/marketpulse-api:latest
-```
-
-### 7. Monitoring Deployment
-
-After deployment, check container status:
-```bash
-docker ps --filter "name=marketpulse"
-```
-
-View logs:
-```bash
-docker logs marketpulse-api
-docker logs marketpulse-client
-docker logs marketpulse-redis
-```
-
-### 8. Troubleshooting
-
-#### Images not found:
-- Check if images are public or if you're authenticated to GHCR
-- Verify `GHCR_TOKEN` has correct permissions
-- Check image names match your GitHub username/organization
-
-#### Deployment fails:
-- Check SSH connection: `ssh your-user@your-ovh-vm`
-- Verify Docker is running: `docker ps`
-- Check disk space: `df -h`
-- View deployment logs on GitHub Actions
-
-#### Containers not starting:
-- Check logs: `docker logs marketpulse-api`
-- Verify .env file has correct values
-- Check port conflicts: `netstat -tulpn | grep -E '4200|5190'`
-
-### 9. Manual Deployment Commands
-
-If you need to manually deploy:
-
-```bash
-# Pull latest images
-docker pull ghcr.io/YOUR_USERNAME/marketpulse-api:latest
-docker pull ghcr.io/YOUR_USERNAME/marketpulse-client:latest
-
-# Stop existing containers
-docker-compose -f docker-compose.prod.yml down
-
-# Start containers
-docker-compose -f docker-compose.prod.yml up -d
-
-# View logs
-docker-compose -f docker-compose.prod.yml logs -f
-```
-
-### 10. Rollback
-
-To rollback to a previous version:
-
-```bash
-# Pull specific tag
-docker pull ghcr.io/YOUR_USERNAME/marketpulse-api:previous-tag
-
-# Update docker-compose.prod.yml with specific tag
-# Then restart
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-## Security Notes
-
-1. **Never commit secrets**: All sensitive data should be in GitHub Secrets
-2. **Use SSH keys**: Always use SSH keys, never passwords
-3. **Restrict access**: Limit who can access the OVH VM
-4. **Keep updated**: Regularly update Docker images and system packages
-5. **Monitor logs**: Regularly check application and system logs
-
-## Support
-
-For issues or questions:
-1. Check GitHub Actions logs
-2. Review container logs on OVH VM
-3. Verify all secrets are correctly configured

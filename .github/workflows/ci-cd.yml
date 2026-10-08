@@ -1,141 +1,101 @@
-name: CI/CD Pipeline - Build, Push & Deploy
+name: CI/CD - Test, build, push to GHCR and deploy to OVH
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - develop
+    branches: [main]
   pull_request:
-    branches:
-      - main
-      - master
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  # Convert repository owner to lowercase for Docker image names (Docker requires lowercase)
-  REPO_OWNER_LOWER: ${{ github.repository_owner }}
-  IMAGE_PREFIX: ${{ github.repository_owner }}/marketpulse
+concurrency:
+  group: marketpulse-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  build-and-push:
+  api:
+    name: API - build and tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    strategy:
-      matrix:
-        service: [api, client]
-
+    defaults: { run: { working-directory: server } }
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - run: dotnet restore MarketPulse.sln
+      - run: dotnet build MarketPulse.sln -c Release --no-restore
+      - run: dotnet test MarketPulse.sln -c Release --no-build --logger "console;verbosity=normal"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+  client:
+    name: Client - build and end-to-end tests
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: client } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: client/package-lock.json }
+      - run: npm ci
+      - run: npx ng build --configuration production
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+        env: { CI: 'true' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright-report, path: client/playwright-report, retention-days: 7 }
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+  image:
+    name: Docker image
+    needs: [api, client]
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}' }
+      # On pull requests the image is only built (proves the Dockerfile works), not pushed.
+      - uses: docker/build-push-action@v6
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GHCR_TOKEN }}
-
-      - name: Convert repository owner to lowercase
-        id: repo-owner-lower
-        run: |
-          echo "owner_lower=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
-      - name: Extract metadata (tags, labels) for API
-        if: matrix.service == 'api'
-        id: meta-api
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ steps.repo-owner-lower.outputs.owner_lower }}/marketpulse-api
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Extract metadata (tags, labels) for Client
-        if: matrix.service == 'client'
-        id: meta-client
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ steps.repo-owner-lower.outputs.owner_lower }}/marketpulse-client
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push API image
-        if: matrix.service == 'api'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./server
-          file: ./server/Dockerfile
+          context: .
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta-api.outputs.tags }}
-          labels: ${{ steps.meta-api.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push Client image
-        if: matrix.service == 'client'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./client
-          file: ./client/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta-client.outputs.tags }}
-          labels: ${{ steps.meta-client.outputs.labels }}
+          tags: |
+            ghcr.io/anasserekysy/marketpulse:latest
+            ghcr.io/anasserekysy/marketpulse:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
-    needs: build-and-push
+    name: Deploy to OVH
+    needs: image
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
+      - uses: actions/checkout@v4
+      - name: Copy deployment files to the VM
+        uses: appleboy/scp-action@v0.1.7
         with:
-          ssh-private-key: ${{ secrets.OVH_SSH_PRIVATE_KEY }}
-
-      - name: Add OVH server to known hosts
-        run: |
-          ssh-keyscan -H ${{ secrets.OVH_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Copy deployment files to OVH VM
-        run: |
-          scp deploy.sh docker-compose.prod.yml ${{ secrets.OVH_USER }}@${{ secrets.OVH_HOST }}:~/marketpulse/
-
-      - name: Deploy to OVH VM
-        run: |
-          ssh ${{ secrets.OVH_USER }}@${{ secrets.OVH_HOST }} << EOF
-            set -e
-            cd ~/marketpulse || mkdir -p ~/marketpulse && cd ~/marketpulse
-            
-            # Set environment variables
-            export GITHUB_OWNER="${{ github.repository_owner }}"
-            export GUSERNAME="${{ github.repository_owner }}"
-            export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
-            
-            # Make deploy script executable
-            chmod +x deploy.sh
-            
-            # Run deployment with environment variables
-            GITHUB_OWNER="${{ github.repository_owner }}" GUSERNAME="${{ github.repository_owner }}" GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}" ./deploy.sh
-          EOF
+          host: ${{ secrets.OVH_HOST }}
+          username: ${{ secrets.OVH_USER }}
+          key: ${{ secrets.OVH_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+          source: deploy/docker-compose.prod.yml,deploy/deploy.sh
+          target: marketpulse
+          strip_components: 1
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          MARKETPULSE_BIND: ${{ vars.MARKETPULSE_BIND }}
+        with:
+          host: ${{ secrets.OVH_HOST }}
+          username: ${{ secrets.OVH_USER }}
+          key: ${{ secrets.OVH_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+          envs: IMAGE_TAG,GHCR_USER,GHCR_TOKEN,ADZUNA_APP_ID,ADZUNA_APP_KEY,MARKETPULSE_BIND
+          command_timeout: 15m
+          script: |
+            chmod +x ~/marketpulse/deploy.sh
+            ~/marketpulse/deploy.sh
