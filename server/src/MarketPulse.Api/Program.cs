@@ -7,6 +7,8 @@ using MarketPulse.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
+// HttpClient logs full request URLs at Information level, and Adzuna takes its key in the URL: keep those logs off.
+builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
 builder.WebHost.ConfigureKestrel(o => o.ListenAnyIP(int.TryParse(builder.Configuration["PORT"], out var p) ? p : 8080));
 
 var adzuna = AdzunaOptions.FromEnvironment(k => builder.Configuration[k]);
