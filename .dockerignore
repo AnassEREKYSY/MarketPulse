@@ -1,0 +1,12 @@
+**/bin
+**/obj
+**/node_modules
+client/dist
+client/.angular
+client/test-results
+client/playwright-report
+server/src/MarketPulse.Api/wwwroot
+.git
+.github
+deploy
+*.md

@@ -2,40 +2,21 @@
 bin/
 obj/
 *.user
-*.suo
-*.cache
-*.dll
-*.exe
-*.pdb
-*.log
-.vs/
-.vscode/
+TestResults/
+# The Angular build is copied into wwwroot by the Dockerfile; never commit it.
+server/src/MarketPulse.Api/wwwroot/
 
-# Angular
+# Node / Angular
 node_modules/
-dist/
-.angular/
-*.log
-npm-debug.log*
+client/dist/
+client/.angular/
+client/test-results/
+client/playwright-report/
 
-# Environment
+# Local settings and secrets
 .env
-.env.local
-.env.*.local
-appsettings.Development.json
-appsettings.*.json
-!appsettings.json
-!appsettings.Development.json.example
-
-# IDE
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
+.env.*
+!.env.example
 .DS_Store
-Thumbs.db
-
-# Docker
-*.dockerignore
+.vscode/
+.idea/
