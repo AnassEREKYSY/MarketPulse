@@ -91,10 +91,10 @@ public sealed partial class AdzunaJobMarket(HttpClient http, AdzunaOptions optio
         HttpResponseMessage res;
         using var turn = await quota.TurnAsync(ct);
         try { res = await http.SendAsync(req, ct); }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested) { throw new MarketException(504, "The job data provider took too long to answer. Please try again."); }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested) { log.LogWarning("Adzuna timed out for {Path}", path); throw new MarketException(504, "The job data provider took too long to answer. Please try again."); }
         catch (HttpRequestException e)
         {
-            log.LogWarning(e, "Adzuna unreachable for {Path}", path);
+            log.LogWarning("Adzuna unreachable for {Path}: {Error}", path, Redact(e.GetBaseException().Message));
             throw new MarketException(503, "The job data provider cannot be reached right now. Please try again shortly.");
         }
 
@@ -156,6 +156,10 @@ public sealed partial class AdzunaJobMarket(HttpClient http, AdzunaOptions optio
             WorkMode: Classifier.WorkModeOf(title, description),
             Seniority: Classifier.SeniorityOf(title, description));
     }
+
+    [GeneratedRegex(@"app_(id|key)=[^&\s]+")] private static partial Regex Secrets();
+    /// <summary>Never let the API key reach the logs, even inside an error message.</summary>
+    static string Redact(string s) => Secrets().Replace(s, "app_$1=***");
 
     [GeneratedRegex("<[^>]+>")] private static partial Regex Tags();
     [GeneratedRegex(@"\s+")] private static partial Regex Spaces();
