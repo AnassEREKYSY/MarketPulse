@@ -33,3 +33,7 @@ export interface MapPoint { name: string; latitude: number; longitude: number; c
 export interface MapData { country: string; currency: string; what: string | null; where: string | null; totalJobs: number; sampled: number; points: MapPoint[]; regions: RegionCount[]; }
 
 export interface JobFilters { page: number; sort: string; maxDaysOld: string; contract: string; time: string; workMode: string; salaryMin: string; category: string; }
+
+export interface AskSource { label: string; path: string; query: Record<string, string>; }
+export interface AskAnswer { answer: string; sources: AskSource[]; }
+export interface AskBody { question: string; history: { role: 'user' | 'assistant'; text: string }[]; country: string; what: string; where: string; }
