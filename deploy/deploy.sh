@@ -29,13 +29,16 @@ set_env ADZUNA_APP_ID "${ADZUNA_APP_ID:-}"
 set_env ADZUNA_APP_KEY "${ADZUNA_APP_KEY:-}"
 set_env ADZUNA_DAILY_LIMIT "${ADZUNA_DAILY_LIMIT:-}"
 set_env MARKETPULSE_BIND "${MARKETPULSE_BIND:-}"
+set_env OPENAI_API_KEY "${OPENAI_API_KEY:-}"
+set_env OPENAI_MODEL "${OPENAI_MODEL:-}"
 for k in ADZUNA_APP_ID ADZUNA_APP_KEY; do
   [ -n "$(env_get $k)" ] || { red "$k is missing: add it as a GitHub secret or in $APP_DIR/.env"; exit 1; }
 done
+[ -n "$(env_get OPENAI_API_KEY)" ] || yellow "OPENAI_API_KEY is not set: the Ask page will say the assistant is not set up (optional)."
 
 # Compose gives shell variables priority over .env, and GitHub passes missing secrets as empty
 # strings: drop them from the environment so the values saved in .env are the ones used.
-unset IMAGE_TAG ADZUNA_APP_ID ADZUNA_APP_KEY ADZUNA_DAILY_LIMIT MARKETPULSE_BIND
+unset IMAGE_TAG ADZUNA_APP_ID ADZUNA_APP_KEY ADZUNA_DAILY_LIMIT MARKETPULSE_BIND OPENAI_API_KEY OPENAI_MODEL
 
 # 2. Registry login and shared network
 if [ -n "${GHCR_TOKEN:-}" ]; then

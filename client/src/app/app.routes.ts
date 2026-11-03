@@ -11,6 +11,7 @@ export const routes: Routes = [
       { path: 'salaries', title: 'Salary explorer · MarketPulse', loadComponent: () => import('./pages/salaries.page').then(m => m.SalariesPage) },
       { path: 'countries', title: 'Countries · MarketPulse', loadComponent: () => import('./pages/countries.page').then(m => m.CountriesPage) },
       { path: 'map', title: 'Map · MarketPulse', loadComponent: () => import('./pages/map.page').then(m => m.MapPage) },
+      { path: 'ask', title: 'Ask the market · MarketPulse', loadComponent: () => import('./pages/ask.page').then(m => m.AskPage) },
       // Old URLs
       { path: 'dashboard', redirectTo: '' },
       { path: 'search', redirectTo: 'jobs' },

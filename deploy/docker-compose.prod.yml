@@ -12,6 +12,11 @@ services:
       ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:?ADZUNA_APP_KEY is missing}
       ADZUNA_DAILY_LIMIT: ${ADZUNA_DAILY_LIMIT:-240}
       CACHE_DIR: /data/cache
+      # Assistant (optional): without a key the Ask page says it is not set up, everything else works.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      ASSISTANT_PER_VISITOR: ${ASSISTANT_PER_VISITOR:-10}
+      ASSISTANT_DAILY_LIMIT: ${ASSISTANT_DAILY_LIMIT:-100}
     volumes:
       - marketpulse_data:/data
     # Only the reverse proxy (web network) and the health check on localhost reach it.

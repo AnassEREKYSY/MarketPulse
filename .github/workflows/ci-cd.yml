@@ -90,11 +90,13 @@ jobs:
           ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
           ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
           MARKETPULSE_BIND: ${{ vars.MARKETPULSE_BIND }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
         with:
           host: ${{ secrets.OVH_HOST }}
           username: ${{ secrets.OVH_USER }}
           key: ${{ secrets.OVH_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
-          envs: IMAGE_TAG,GHCR_USER,GHCR_TOKEN,ADZUNA_APP_ID,ADZUNA_APP_KEY,MARKETPULSE_BIND
+          envs: IMAGE_TAG,GHCR_USER,GHCR_TOKEN,ADZUNA_APP_ID,ADZUNA_APP_KEY,MARKETPULSE_BIND,OPENAI_API_KEY,OPENAI_MODEL
           command_timeout: 15m
           script: |
             chmod +x ~/marketpulse/deploy.sh

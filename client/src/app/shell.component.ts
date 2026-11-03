@@ -69,6 +69,7 @@ export class ShellComponent {
     { path: '/salaries', label: 'Salary explorer', short: 'Salaries', icon: 'coins' },
     { path: '/countries', label: 'Countries', short: 'Countries', icon: 'globe' },
     { path: '/map', label: 'Map', short: 'Map', icon: 'map' },
+    { path: '/ask', label: 'Ask the market', short: 'Ask', icon: 'sparkle' },
   ];
   constructor() {
     // Keep the form in sync with the URL (back/forward, shared links).
