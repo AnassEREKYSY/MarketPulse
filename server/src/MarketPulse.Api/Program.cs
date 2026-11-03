@@ -15,7 +15,12 @@ builder.WebHost.ConfigureKestrel(o => o.ListenAnyIP(int.TryParse(builder.Configu
 
 var adzuna = AdzunaOptions.FromEnvironment(k => builder.Configuration[k]);
 var cacheDir = builder.Configuration["CACHE_DIR"] is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "marketpulse-cache");
-builder.Services.AddMarketPulse(adzuna, cacheDir);
+var openAi = OpenAiOptions.FromEnvironment(k => builder.Configuration[k]);
+builder.Services.AddMarketPulse(adzuna, cacheDir, openAi);
+builder.Services.AddSingleton(sp => new AssistantLimiter(
+    int.TryParse(builder.Configuration["ASSISTANT_PER_VISITOR"], out var v) && v > 0 ? v : 10,
+    int.TryParse(builder.Configuration["ASSISTANT_DAILY_LIMIT"], out var t) && t > 0 ? t : 100,
+    sp.GetRequiredService<TimeProvider>()));
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
     o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
@@ -24,10 +29,11 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 // Production serves the app and the API from one origin; CORS is only for local development.
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins((builder.Configuration["CORS_ORIGINS"] ?? "http://localhost:4200").Split(',', StringSplitOptions.RemoveEmptyEntries))
-    .WithMethods("GET").AllowAnyHeader()));
+    .WithMethods("GET", "POST").AllowAnyHeader()));
 
 var app = builder.Build();
 if (!adzuna.Configured) app.Logger.LogWarning("ADZUNA_APP_ID / ADZUNA_APP_KEY are not set: data endpoints will answer 503.");
+if (!openAi.Configured) app.Logger.LogInformation("OPENAI_API_KEY is not set: the assistant will answer 503.");
 
 app.UseExceptionHandler(e => e.Run(async ctx =>
 {
@@ -54,6 +60,7 @@ var staticFiles = new StaticFileOptions
 app.UseStaticFiles(staticFiles);
 
 app.MapMarketApi();
+app.MapAssistant();
 app.MapFallback("/api/{**rest}", () => Results.Json(new { error = "Not found" }, statusCode: 404));
 app.MapFallbackToFile("index.html", staticFiles);
 

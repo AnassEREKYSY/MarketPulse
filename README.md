@@ -26,6 +26,8 @@ Live: https://marketpulse.anasserekysy.com
 
 **Map.** Where the ads are, on a dark map, with the count per region.
 
+**Ask the market.** A chat page: "Is .NET or Java better paid in Germany?", "How many data engineer jobs are remote in the UK?", "Show me the latest React ads in Lyon". The assistant (OpenAI, function calling) calls the same use cases as the screens (overview, salaries, compare skills, countries, jobs), so every number comes from the live data, then links each answer to the screens it used. Written in .NET without an SDK: `OpenAiChatModel` talks to the Chat Completions API over `HttpClient`, and `AssistantService` runs the tool loop with a cap on rounds and tool calls. Questions are limited per visitor and per day (`ASSISTANT_PER_VISITOR`, `ASSISTANT_DAILY_LIMIT`), and tool calls go through the same cache and Adzuna quota guard.
+
 Every chart has a text or table equivalent, the search lives in the URL (any view can be shared), and the layout works on phones.
 
 <img src="docs/screenshots/mobile.png" alt="Mobile" width="300" />

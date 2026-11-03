@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environments/environment';
-import { Category, Compare, Countries, Country, JobFilters, JobsPage, MapData, Overview, Salaries } from './models';
+import { AskAnswer, AskBody, Category, Compare, Countries, Country, JobFilters, JobsPage, MapData, Overview, Salaries } from './models';
 
 export interface Scope { country: string; what: string; where: string; }
 
@@ -28,4 +28,5 @@ export class Api {
   salaries(s: Scope) { return this.http.get<Salaries>(`${this.b}/salaries`, { params: params({ ...s }) }); }
   compareCountries(what: string, codes: string[]) { return this.http.get<Countries>(`${this.b}/countries/compare`, { params: params({ what, codes: codes.join(',') }) }); }
   map(s: Scope) { return this.http.get<MapData>(`${this.b}/map`, { params: params({ ...s }) }); }
+  ask(body: AskBody) { return this.http.post<AskAnswer>(`${this.b}/assistant`, body); }
 }

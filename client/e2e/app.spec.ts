@@ -111,3 +111,29 @@ test('old URLs and unknown pages', async ({ page }) => {
   await page.goto('/nowhere');
   await expect(page.getByText('This page does not exist')).toBeVisible();
 });
+
+test('ask the market answers with links to the screens it used', async ({ page }) => {
+  let body: { question?: string; country?: string; history?: unknown[] } = {};
+  await mockApi(page, {
+    '/assistant': (route) => { body = route.request().postDataJSON(); return false; },
+  });
+  await page.goto('/ask?q=.NET');
+  await page.getByTestId('ask-input').fill('How many .NET jobs in France?');
+  await page.getByTestId('ask-send').click();
+  const answer = page.getByTestId('answer');
+  await expect(answer).toContainText('2,992');
+  await expect(answer.locator('strong').first()).toHaveText('2,992');
+  expect(body.question).toBe('How many .NET jobs in France?');
+  expect(body.country).toBe('fr');
+  await answer.getByRole('link', { name: 'Salary explorer' }).click();
+  await expect(page).toHaveURL(/\/salaries\?.*q=.NET/);
+});
+
+test('ask the market shows server refusals', async ({ page }) => {
+  await mockApi(page, {
+    '/assistant': (route) => route.fulfill({ status: 429, json: { error: 'You have used your 10 questions for today. Come back tomorrow (UTC).' }, headers: { 'access-control-allow-origin': '*' } }),
+  });
+  await page.goto('/ask');
+  await page.getByTestId('suggestion').first().click();
+  await expect(page.getByTestId('ask-error')).toContainText('10 questions');
+});

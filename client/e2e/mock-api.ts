@@ -56,6 +56,10 @@ export async function mockApi(page: Page, overrides: Record<string, (r: Route, c
         what: s.what, ratesAsOf: '2026-09',
         items: (c.search.get('codes') ?? '').split(',').map((code, i) => ({ code, name: countries.find(x => x.code === code)?.name ?? code, currency: 'EUR', totalJobs: 1000 + i * 500, meanSalary: 50000, meanSalaryEur: 50000 + i * 5000, medianSalary: 50000, medianSalaryEur: 50000 + i * 5000, remotePercent: 30, topRegion: 'Capital' })),
       });
+      case '/assistant': return json({
+        answer: 'There are **2,992** open .NET jobs in France.\n- About 34% are remote\n- Median salary: **55k EUR**',
+        sources: [{ label: 'Overview', path: '/', query: { c: 'fr', q: '.NET' } }, { label: 'Salary explorer', path: '/salaries', query: { c: 'fr', q: '.NET' } }],
+      });
       case '/map': return json({ ...s, currency: 'EUR', totalJobs: 2903, sampled: 100, points: [{ name: 'Paris', latitude: 48.85, longitude: 2.35, count: 40, medianSalary: 58000 }], regions: [{ name: 'Île-de-France', count: 400 }] });
     }
     return route.fulfill({ status: 404, json: { error: 'Not found' } });

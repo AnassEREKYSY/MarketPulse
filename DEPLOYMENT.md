@@ -25,8 +25,11 @@ One container, `marketpulse`, on the `web` network, published on `127.0.0.1:5310
 | `OVH_HOST`, `OVH_USER`, `OVH_SSH_PRIVATE_KEY` | SSH access to the VM (already set for the old pipeline; `SSH_PRIVATE_KEY` also works) |
 | `GHCR_TOKEN` | Token with `write:packages`, used to push the image and to pull it on the VM |
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Optional if they are already in `~/marketpulse/.env` on the VM |
+| `OPENAI_API_KEY` | Optional: turns on the Ask page. Saved into `~/marketpulse/.env` on the VM at the next deploy |
 
-Optional variable `MARKETPULSE_BIND` (default `127.0.0.1:5310`) changes the host port.
+Optional variables: `MARKETPULSE_BIND` (default `127.0.0.1:5310`) changes the host port; `OPENAI_MODEL` (default `gpt-4o-mini`) changes the assistant's model.
+
+Assistant limits live in `~/marketpulse/.env` on the VM: `ASSISTANT_PER_VISITOR` (default 10 questions a day per visitor) and `ASSISTANT_DAILY_LIMIT` (default 100 a day for the whole site). Each question can also use Adzuna calls (cached like the screens), so keep the daily limit well under the Adzuna allowance.
 
 ## Domain and HTTPS (once)
 
